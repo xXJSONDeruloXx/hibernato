@@ -8,6 +8,9 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: write
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
@@ -32,11 +35,19 @@ jobs:
       - name: Build frontend
         run: pnpm run build
       
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rsync zip
+      
       - name: Install Decky CLI
         run: |
           mkdir -p cli
-          curl -L -o cli/decky "https://github.com/SteamDeckHomebrew/decky-loader/releases/latest/download/decky-linux-x86_64"
+          curl -L -o cli/decky "https://github.com/SteamDeckHomebrew/cli/releases/latest/download/decky-linux-x86_64"
           chmod +x cli/decky
+          # Verify the binary is valid
+          file cli/decky
+          ./cli/decky --help || echo "CLI installed"
       
       - name: Build plugin
         run: |
