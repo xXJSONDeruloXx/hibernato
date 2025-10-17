@@ -1,0 +1,76 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      
+      - name: Install dependencies
+        run: pnpm install
+      
+      - name: Build frontend
+        run: pnpm run build
+      
+      - name: Install Decky CLI
+        run: |
+          mkdir -p cli
+          curl -L -o cli/decky "https://github.com/SteamDeckHomebrew/decky-loader/releases/latest/download/decky-linux-x86_64"
+          chmod +x cli/decky
+      
+      - name: Build plugin
+        run: |
+          sudo -E ./cli/decky plugin build $(pwd)
+          
+      - name: Rename zip file
+        run: |
+          cd out
+          # Rename from capital case to lowercase if needed
+          if [ -f "Hibernato.zip" ]; then
+            mv Hibernato.zip hibernado.zip
+          fi
+          ls -la
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ inputs.version }}
+          name: Release ${{ inputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            out/hibernado.zip
+          body: |
+            ## hibernado ${{ inputs.version }}
+            
+            A Decky Loader plugin for Steam Deck hibernation with automatic swap configuration.
+            
+            ### Installation
+            1. Download `hibernado.zip`
+            2. Install via Decky Loader in Gaming Mode
+            3. Or manually extract to `~/homebrew/plugins/hibernado/`
+            
+            ### Changelog
+            See commit history for changes in this release.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
