@@ -17,6 +17,7 @@ import { FaTornado } from "react-icons/fa6";
 const checkHibernateStatus = callable<[], any>("check_hibernate_status");
 const prepareHibernate = callable<[], any>("prepare_hibernate");
 const hibernateNow = callable<[], any>("hibernate_now");
+const suspendThenHibernate = callable<[], any>("suspend_then_hibernate");
 
 function Content() {
   const [status, setStatus] = useState<any>(null);
@@ -93,6 +94,29 @@ function Content() {
     }
   };
 
+  const handleSuspendThenHibernate = async () => {
+    setIsLoading(true);
+    try {
+      // Suspend first, then hibernate after delay
+      const result = await suspendThenHibernate();
+      
+      if (!result.success) {
+        toaster.toast({
+          title: "Suspend-then-Hibernate Failed",
+          body: result.error || "Unknown error occurred"
+        });
+      }
+      // If successful, system will suspend and we won't reach here
+    } catch (error) {
+      console.error("Suspend-then-hibernate failed:", error);
+      toaster.toast({
+        title: "Suspend-then-Hibernate Error",
+        body: String(error)
+      });
+      setIsLoading(false);
+    }
+  };
+
   const getStatusColor = () => {
     if (!status) return "#888";
     if (status.ready) return "#4CAF50";
@@ -132,6 +156,16 @@ function Content() {
           disabled={isLoading}
         >
           {isLoading ? "Processing..." : "Hibernate Now"}
+        </ButtonItem>
+      </PanelSectionRow>
+
+      <PanelSectionRow>
+        <ButtonItem
+          layout="below"
+          onClick={handleSuspendThenHibernate}
+          disabled={isLoading}
+        >
+          {isLoading ? "Processing..." : "Suspend then Hibernate"}
         </ButtonItem>
       </PanelSectionRow>
 

@@ -70,6 +70,12 @@ case "$ACTION" in
         echo disk > /sys/power/state
         ;;
         
+    suspend-then-hibernate)
+        # Trigger suspend-then-hibernate using systemctl
+        # This suspends to RAM first, then hibernates after the configured delay
+        systemctl suspend-then-hibernate
+        ;;
+        
     cleanup)
         # Clean up hibernation setup during plugin uninstall
         SWAP=/home/swapfile
@@ -108,7 +114,7 @@ case "$ACTION" in
         ;;
         
     *)
-        echo "Usage: $0 {status|prepare|hibernate|cleanup}"
+        echo "Usage: $0 {status|prepare|hibernate|suspend-then-hibernate|cleanup}"
         exit 1
         ;;
 esac

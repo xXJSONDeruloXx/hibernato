@@ -258,3 +258,56 @@ class Plugin:
                 "success": False,
                 "error": error_msg
             }
+
+    async def suspend_then_hibernate(self) -> dict:
+        """Suspend (sleep) first, then hibernate after configured delay (typically 1 hour)"""
+        try:
+            decky.logger.info("Starting suspend-then-hibernate workflow...")
+            
+            # Check current status
+            status = await self.check_hibernate_status()
+            
+            # If not ready, prepare first
+            if not status.get("ready", False):
+                decky.logger.info("System not ready for hibernation, preparing...")
+                
+                prep_result = await self.prepare_hibernate()
+                if not prep_result.get("success", False):
+                    return prep_result
+            else:
+                decky.logger.info("System already configured for hibernation")
+            
+            # Trigger suspend-then-hibernate using systemctl
+            decky.logger.info("Triggering suspend-then-hibernate via systemctl...")
+            
+            returncode, stdout, stderr = self._run_helper("suspend-then-hibernate", timeout=10)
+            
+            if returncode != 0:
+                error_msg = stderr or "Unknown error during suspend-then-hibernate"
+                decky.logger.error(f"Suspend-then-hibernate failed: {error_msg}")
+                return {
+                    "success": False,
+                    "error": error_msg
+                }
+            
+            decky.logger.info("Suspend-then-hibernate triggered successfully")
+            return {
+                "success": True,
+                "message": "System is suspending, then will hibernate..."
+            }
+            
+        except Exception as e:
+            # Timeout or connection loss is expected as system suspends
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                decky.logger.info("Suspend-then-hibernate command sent (timeout expected)")
+                return {
+                    "success": True,
+                    "message": "System is suspending, then will hibernate..."
+                }
+            
+            error_msg = str(e)
+            decky.logger.error(f"Error in suspend_then_hibernate: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg
+            }
