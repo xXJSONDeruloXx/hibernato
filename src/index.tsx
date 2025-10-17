@@ -23,15 +23,11 @@ function Content() {
   const [status, setStatus] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load hibernate status on mount and poll every 2 seconds
+  // Load hibernate status on mount only
   useEffect(() => {
+    // Reset loading state in case we're waking from suspend/hibernate
+    setIsLoading(false);
     loadStatus();
-    
-    const interval = setInterval(() => {
-      loadStatus();
-    }, 2000);
-    
-    return () => clearInterval(interval);
   }, []);
 
   const loadStatus = async () => {
