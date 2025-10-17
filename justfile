@@ -8,3 +8,9 @@ build:
 
 test:
     .vscode/build.sh && scp out/hibernado.zip deck@192.168.0.6:~ && clear && ssh deck@192.168.0.6 'journalctl --follow'
+
+clean:
+    rm -rf out
+    rm -rf dist
+    rm -rf node_modules
+    rm -rf .rollup.cache
