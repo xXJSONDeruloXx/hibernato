@@ -2,8 +2,9 @@ import {
   ButtonItem,
   PanelSection,
   PanelSectionRow,
-  Navigation,
-  staticClasses
+  staticClasses,
+  ToggleField,
+  Field
 } from "@decky/ui";
 import {
   addEventListener,
@@ -11,105 +12,243 @@ import {
   callable,
   definePlugin,
   toaster,
-  // routerHook
 } from "@decky/api"
-import { useState } from "react";
-import { FaShip } from "react-icons/fa";
+import { useState, useEffect } from "react";
+import { VscDebugStart } from "react-icons/vsc";
 
-// import logo from "../assets/logo.png";
-
-// This function calls the python function "add", which takes in two numbers and returns their sum (as a number)
-// Note the type annotations:
-//  the first one: [first: number, second: number] is for the arguments
-//  the second one: number is for the return value
-const add = callable<[first: number, second: number], number>("add");
-
-// This function calls the python function "start_timer", which takes in no arguments and returns nothing.
-// It starts a (python) timer which eventually emits the event 'timer_event'
-const startTimer = callable<[], void>("start_timer");
+// Backend callable functions
+const checkHibernateStatus = callable<[], any>("check_hibernate_status");
+const prepareHibernate = callable<[], any>("prepare_hibernate");
+const triggerHibernate = callable<[], any>("trigger_hibernate");
+const hibernateNow = callable<[], any>("hibernate_now");
 
 function Content() {
-  const [result, setResult] = useState<number | undefined>();
+  const [status, setStatus] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [autoSetup, setAutoSetup] = useState(true);
 
-  const onClick = async () => {
-    const result = await add(Math.random(), Math.random());
-    setResult(result);
+  // Load hibernate status on mount
+  useEffect(() => {
+    loadStatus();
+  }, []);
+
+  const loadStatus = async () => {
+    try {
+      const result = await checkHibernateStatus();
+      setStatus(result);
+    } catch (error) {
+      console.error("Failed to check hibernate status:", error);
+      toaster.toast({
+        title: "Status Check Failed",
+        body: String(error)
+      });
+    }
+  };
+
+  const handlePrepare = async () => {
+    setIsLoading(true);
+    try {
+      toaster.toast({
+        title: "Preparing Hibernation",
+        body: "Setting up swapfile and kernel parameters..."
+      });
+
+      const result = await prepareHibernate();
+      
+      if (result.success) {
+        toaster.toast({
+          title: "Setup Complete",
+          body: result.message || "Hibernation is now ready!"
+        });
+        await loadStatus();
+      } else {
+        toaster.toast({
+          title: "Setup Failed",
+          body: result.error || "Unknown error occurred"
+        });
+      }
+    } catch (error) {
+      console.error("Prepare failed:", error);
+      toaster.toast({
+        title: "Setup Error",
+        body: String(error)
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleHibernate = async () => {
+    setIsLoading(true);
+    try {
+      if (autoSetup) {
+        // Use the complete workflow
+        toaster.toast({
+          title: "Hibernating",
+          body: "Preparing system for hibernation..."
+        });
+
+        const result = await hibernateNow();
+        
+        if (!result.success) {
+          toaster.toast({
+            title: "Hibernation Failed",
+            body: result.error || "Unknown error occurred"
+          });
+        }
+        // If successful, system will hibernate and we won't reach here
+      } else {
+        // Just trigger hibernation without auto-setup
+        if (!status?.ready) {
+          toaster.toast({
+            title: "Not Ready",
+            body: "Please run setup first or enable auto-setup"
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        const result = await triggerHibernate();
+        
+        if (!result.success) {
+          toaster.toast({
+            title: "Hibernation Failed",
+            body: result.error || "Unknown error occurred"
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Hibernate failed:", error);
+      toaster.toast({
+        title: "Hibernation Error",
+        body: String(error)
+      });
+      setIsLoading(false);
+    }
+  };
+
+  const getStatusColor = () => {
+    if (!status) return "#888";
+    if (status.ready) return "#4CAF50";
+    if (status.swapfile_exists || status.swap_active) return "#FF9800";
+    return "#F44336";
+  };
+
+  const getStatusText = () => {
+    if (!status) return "Checking...";
+    if (status.ready) return "Ready";
+    if (status.swapfile_exists && status.swap_active) return "Needs kernel config";
+    if (status.swapfile_exists) return "Needs swap activation";
+    return "Not configured";
   };
 
   return (
-    <PanelSection title="Panel Section">
+    <PanelSection title="Hibernation Control">
+      <PanelSectionRow>
+        <Field
+          label="Status"
+          description={getStatusText()}
+        >
+          <div style={{
+            width: "12px",
+            height: "12px",
+            borderRadius: "50%",
+            backgroundColor: getStatusColor(),
+            marginRight: "8px"
+          }} />
+        </Field>
+      </PanelSectionRow>
+
+      <PanelSectionRow>
+        <ToggleField
+          label="Auto-setup"
+          description="Automatically configure hibernation before hibernating"
+          checked={autoSetup}
+          onChange={(value) => setAutoSetup(value)}
+        />
+      </PanelSectionRow>
+
       <PanelSectionRow>
         <ButtonItem
           layout="below"
-          onClick={onClick}
+          onClick={handleHibernate}
+          disabled={isLoading}
         >
-          {result ?? "Add two numbers via Python"}
+          {isLoading ? "Processing..." : "Hibernate Now"}
         </ButtonItem>
       </PanelSectionRow>
+
+      {!status?.ready && (
+        <PanelSectionRow>
+          <ButtonItem
+            layout="below"
+            onClick={handlePrepare}
+            disabled={isLoading}
+          >
+            {isLoading ? "Setting up..." : "Setup Hibernation"}
+          </ButtonItem>
+        </PanelSectionRow>
+      )}
+
       <PanelSectionRow>
         <ButtonItem
           layout="below"
-          onClick={() => startTimer()}
+          onClick={loadStatus}
+          disabled={isLoading}
         >
-          {"Start Python timer"}
+          Refresh Status
         </ButtonItem>
       </PanelSectionRow>
 
-      {/* <PanelSectionRow>
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          <img src={logo} />
-        </div>
-      </PanelSectionRow> */}
+      {status && !status.success && (
+        <PanelSectionRow>
+          <div style={{ color: "#F44336", fontSize: "0.9em" }}>
+            Error: {status.error}
+          </div>
+        </PanelSectionRow>
+      )}
 
-      {/*<PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={() => {
-            Navigation.Navigate("/decky-plugin-test");
-            Navigation.CloseSideMenus();
-          }}
-        >
-          Router
-        </ButtonItem>
-      </PanelSectionRow>*/}
+      {status?.ready && (
+        <PanelSectionRow>
+          <div style={{ fontSize: "0.85em", color: "#4CAF50", marginTop: "8px" }}>
+            ✓ Swapfile configured<br />
+            ✓ Swap active<br />
+            ✓ Resume parameters set
+          </div>
+        </PanelSectionRow>
+      )}
     </PanelSection>
   );
 };
 
 export default definePlugin(() => {
-  console.log("Template plugin initializing, this is called once on frontend startup")
+  console.log("Hibernato plugin initializing...")
 
-  // serverApi.routerHook.addRoute("/decky-plugin-test", DeckyPluginRouterTest, {
-  //   exact: true,
-  // });
-
-  // Add an event listener to the "timer_event" event from the backend
-  const listener = addEventListener<[
-    test1: string,
-    test2: boolean,
-    test3: number
-  ]>("timer_event", (test1, test2, test3) => {
-    console.log("Template got timer_event with:", test1, test2, test3)
-    toaster.toast({
-      title: "template got timer_event",
-      body: `${test1}, ${test2}, ${test3}`
-    });
-  });
+  // Add an event listener for hibernate progress updates
+  const progressListener = addEventListener<[message: string]>(
+    "hibernate_progress",
+    (message) => {
+      console.log("Hibernate progress:", message);
+      toaster.toast({
+        title: "Hibernato",
+        body: message
+      });
+    }
+  );
 
   return {
     // The name shown in various decky menus
-    name: "Test Plugin",
+    name: "Hibernato",
     // The element displayed at the top of your plugin's menu
-    titleView: <div className={staticClasses.Title}>Decky Example Plugin</div>,
+    titleView: <div className={staticClasses.Title}>Hibernato</div>,
     // The content of your plugin's menu
     content: <Content />,
     // The icon displayed in the plugin list
-    icon: <FaShip />,
+    icon: <VscDebugStart />,
     // The function triggered when your plugin unloads
     onDismount() {
-      console.log("Unloading")
-      removeEventListener("timer_event", listener);
-      // serverApi.routerHook.removeRoute("/decky-plugin-test");
+      console.log("Hibernato unloading...")
+      removeEventListener("hibernate_progress", progressListener);
     },
   };
 });

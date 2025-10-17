@@ -1,11 +1,12 @@
 {
-  "name": "Example Plugin",
-  "author": "John Doe",
-  "flags": ["debug", "_root"],
+  "name": "Hibernato",
+  "author": "Kurt",
+  "flags": ["_root"],
   "api_version": 1,
   "publish": {
-    "tags": ["template", "root"],
-    "description": "Decky example plugin.",
+    "tags": ["power-management", "hibernate", "steam-deck"],
+    "description": "A simple hibernation plugin for Steam Deck that handles swap setup and kernel configuration automatically.",
     "image": "https://opengraph.githubassets.com/1/SteamDeckHomebrew/PluginLoader"
   }
 }
+

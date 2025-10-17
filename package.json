@@ -1,7 +1,7 @@
 {
-  "name": "decky-plugin-template",
-  "version": "0.0.1",
-  "description": "A template to quickly create decky plugins from scratch, based on TypeScript and webpack",
+  "name": "hibernato",
+  "version": "1.0.0",
+  "description": "A Decky plugin for Steam Deck hibernation with automatic swap and kernel configuration",
   "type": "module",
   "scripts": {
     "build": "rollup -c",
@@ -10,21 +10,22 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SteamDeckHomebrew/decky-plugin-template.git"
+    "url": "git+https://github.com/xXJSONDeruloXx/hibernato.git"
   },
   "keywords": [
     "decky",
     "plugin",
-    "plugin-template",
+    "hibernate",
     "steam-deck",
-    "deck"
+    "deck",
+    "power-management"
   ],
-  "author": "You <you@you.tld>",
+  "author": "Kurt",
   "license": "BSD-3-Clause",
   "bugs": {
-    "url": "https://github.com/SteamDeckHomebrew/decky-plugin-template/issues"
+    "url": "https://github.com/xXJSONDeruloXx/hibernato/issues"
   },
-  "homepage": "https://github.com/SteamDeckHomebrew/decky-plugin-template#readme",
+  "homepage": "https://github.com/xXJSONDeruloXx/hibernato#readme",
   "devDependencies": {
     "@decky/rollup": "^1.0.1",
     "@decky/ui": "^4.7.2",

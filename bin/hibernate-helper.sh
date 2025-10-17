@@ -1,0 +1,74 @@
+#!/bin/bash
+# Hibernato Helper Script
+# This script runs with proper system environment to avoid library conflicts
+
+set -e
+
+ACTION="${1:-status}"
+
+case "$ACTION" in
+    status)
+        # Check hibernation status
+        SWAP="/home/swapfile"
+        
+        # Check swapfile exists
+        if [ ! -f "$SWAP" ]; then
+            echo "SWAPFILE_MISSING"
+            exit 0
+        fi
+        
+        # Check swap is active
+        if ! swapon --show=NAME | grep -q "$SWAP"; then
+            echo "SWAP_INACTIVE"
+            exit 0
+        fi
+        
+        # Check resume parameters
+        if ! grep -q "resume=" /etc/kernel/cmdline 2>/dev/null; then
+            echo "RESUME_NOT_CONFIGURED"
+            exit 0
+        fi
+        
+        echo "READY"
+        ;;
+        
+    prepare)
+        # Prepare hibernation setup
+        UUID=$(findmnt -no UUID -T /)
+        SWAP=/home/swapfile
+        
+        # Create/activate swap
+        if ! swapon --show=NAME | grep -q "$SWAP"; then
+            if [ ! -f "$SWAP" ]; then
+                echo "Creating swapfile..."
+                fallocate -l $(( $(grep MemTotal /proc/meminfo | awk '{print $2}') / 1024 + 1024 ))M "$SWAP"
+                chmod 600 "$SWAP"
+                mkswap "$SWAP" >/dev/null
+            fi
+            swapon "$SWAP"
+        fi
+        
+        # Get file offset
+        OFF=$(filefrag -v "$SWAP" | awk '/^ 0:/{sub(/\.\./,"");print $4}')
+        
+        # Update kernel parameters
+        steamos-readonly disable
+        sed -i '/resume=/d' /etc/kernel/cmdline
+        echo "resume=UUID=$UUID resume_offset=$OFF" >> /etc/kernel/cmdline
+        kernel-install add-current >/dev/null 2>&1
+        steamos-readonly enable
+        
+        echo "SUCCESS:$UUID:$OFF"
+        ;;
+        
+    hibernate)
+        # Trigger hibernation using system systemctl (not bundled with Decky)
+        # Use absolute path to avoid library conflicts
+        /usr/bin/systemctl hibernate
+        ;;
+        
+    *)
+        echo "Usage: $0 {status|prepare|hibernate}"
+        exit 1
+        ;;
+esac
