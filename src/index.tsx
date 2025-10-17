@@ -13,7 +13,6 @@ import {
 import { useState, useEffect } from "react";
 import { FaTornado } from "react-icons/fa6";
 
-// Backend callable functions
 const checkHibernateStatus = callable<[], any>("check_hibernate_status");
 const prepareHibernate = callable<[], any>("prepare_hibernate");
 const hibernateNow = callable<[], any>("hibernate_now");
@@ -23,7 +22,6 @@ function Content() {
   const [status, setStatus] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load hibernate status on mount only
   useEffect(() => {
     // Reset loading state in case we're waking from suspend/hibernate
     setIsLoading(false);
@@ -70,7 +68,6 @@ function Content() {
   const handleHibernate = async () => {
     setIsLoading(true);
     try {
-      // Use the complete workflow - automatically handles setup if needed
       const result = await hibernateNow();
       
       if (!result.success) {
@@ -79,7 +76,6 @@ function Content() {
           body: result.error || "Unknown error occurred"
         });
       }
-      // If successful, system will hibernate and we won't reach here
     } catch (error) {
       console.error("Hibernate failed:", error);
       toaster.toast({
@@ -93,7 +89,6 @@ function Content() {
   const handleSuspendThenHibernate = async () => {
     setIsLoading(true);
     try {
-      // Suspend first, then hibernate after delay
       const result = await suspendThenHibernate();
       
       if (!result.success) {
@@ -102,7 +97,6 @@ function Content() {
           body: result.error || "Unknown error occurred"
         });
       }
-      // If successful, system will suspend and we won't reach here
     } catch (error) {
       console.error("Suspend-then-hibernate failed:", error);
       toaster.toast({
@@ -202,15 +196,10 @@ export default definePlugin(() => {
   console.log("hibernado plugin initializing...")
 
   return {
-    // The name shown in various decky menus
     name: "hibernado",
-    // The element displayed at the top of your plugin's menu
     titleView: <div className={staticClasses.Title}>hibernado</div>,
-    // The content of your plugin's menu
     content: <Content />,
-    // The icon displayed in the plugin list
     icon: <FaTornado />,
-    // The function triggered when your plugin unloads
     onDismount() {
       console.log("hibernado unloading...")
     },

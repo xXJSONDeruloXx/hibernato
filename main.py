@@ -2,15 +2,10 @@ import os
 import subprocess
 import re
 from pathlib import Path
-
-# The decky plugin module is located at decky-loader/plugin
-# For easy intellisense checkout the decky-loader code repo
-# and add the `decky-loader/plugin/imports` path to `python.analysis.extraPaths` in `.vscode/settings.json`
 import decky
 import asyncio
 
 class Plugin:
-    # Asyncio-compatible long-running code, executed in a task when the plugin is loaded
     async def _main(self):
         self.loop = asyncio.get_event_loop()
         
@@ -23,7 +18,6 @@ class Plugin:
         plugin_dir = Path(decky.DECKY_PLUGIN_DIR)
         self.helper_script = plugin_dir / "bin" / "hibernate-helper.sh"
         
-        # Make sure helper script is executable
         if self.helper_script.exists():
             os.chmod(self.helper_script, 0o755)
             decky.logger.info(f"hibernado plugin loaded! Helper script: {self.helper_script}")
@@ -37,7 +31,6 @@ class Plugin:
         so no sudo is needed.
         """
         try:
-            # No sudo needed - plugin already runs as root
             result = subprocess.run(
                 [str(self.helper_script), action],
                 capture_output=True,
@@ -51,14 +44,10 @@ class Plugin:
         except Exception as e:
             return -1, "", str(e)
 
-    # Function called first during the unload process, utilize this to handle your plugin being stopped, but not
-    # completely removed
     async def _unload(self):
         decky.logger.info("hibernado plugin unloading...")
         pass
 
-    # Function called after `_unload` during uninstall, utilize this to clean up processes and other remnants of your
-    # plugin that may remain on the system
     async def _uninstall(self):
         decky.logger.info("hibernado plugin uninstalling - cleaning up hibernation setup...")
         try:
@@ -75,7 +64,6 @@ class Plugin:
         
         decky.logger.info("hibernado plugin uninstalled!")
 
-    # Migrations that should be performed before entering `_main()`.
     async def _migration(self):
         decky.logger.info("Migrating hibernado settings...")
         pass
@@ -235,10 +223,8 @@ class Plugin:
         try:
             decky.logger.info("Starting complete hibernate workflow...")
             
-            # Check current status
             status = await self.check_hibernate_status()
             
-            # If not ready, prepare first
             if not status.get("ready", False):
                 decky.logger.info("System not ready for hibernation, preparing...")
                 
@@ -248,7 +234,6 @@ class Plugin:
             else:
                 decky.logger.info("System already configured for hibernation")
             
-            # Trigger hibernation
             return await self.trigger_hibernate()
             
         except Exception as e:
@@ -264,10 +249,8 @@ class Plugin:
         try:
             decky.logger.info("Starting suspend-then-hibernate workflow...")
             
-            # Check current status
             status = await self.check_hibernate_status()
             
-            # If not ready, prepare first
             if not status.get("ready", False):
                 decky.logger.info("System not ready for hibernation, preparing...")
                 
@@ -277,7 +260,6 @@ class Plugin:
             else:
                 decky.logger.info("System already configured for hibernation")
             
-            # Trigger suspend-then-hibernate using systemctl
             decky.logger.info("Triggering suspend-then-hibernate via systemctl...")
             
             returncode, stdout, stderr = self._run_helper("suspend-then-hibernate", timeout=10)
@@ -297,7 +279,6 @@ class Plugin:
             }
             
         except Exception as e:
-            # Timeout or connection loss is expected as system suspends
             if "timeout" in str(e).lower() or "timed out" in str(e).lower():
                 decky.logger.info("Suspend-then-hibernate command sent (timeout expected)")
                 return {
