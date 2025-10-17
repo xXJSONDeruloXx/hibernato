@@ -55,7 +55,7 @@ case "$ACTION" in
         steamos-readonly disable
         sed -i '/resume=/d' /etc/kernel/cmdline
         echo "resume=UUID=$UUID resume_offset=$OFF" >> /etc/kernel/cmdline
-        kernel-install add-current >/dev/null 2>&1
+        kernel-install add-current >/dev/null 2>&1 || true
         steamos-readonly enable
         
         echo "SUCCESS:$UUID:$OFF"

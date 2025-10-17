@@ -3,7 +3,6 @@ import {
   PanelSection,
   PanelSectionRow,
   staticClasses,
-  ToggleField,
   Field
 } from "@decky/ui";
 import {
@@ -17,17 +16,21 @@ import { FaTornado } from "react-icons/fa6";
 // Backend callable functions
 const checkHibernateStatus = callable<[], any>("check_hibernate_status");
 const prepareHibernate = callable<[], any>("prepare_hibernate");
-const triggerHibernate = callable<[], any>("trigger_hibernate");
 const hibernateNow = callable<[], any>("hibernate_now");
 
 function Content() {
   const [status, setStatus] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [autoSetup, setAutoSetup] = useState(true);
 
-  // Load hibernate status on mount
+  // Load hibernate status on mount and poll every 2 seconds
   useEffect(() => {
     loadStatus();
+    
+    const interval = setInterval(() => {
+      loadStatus();
+    }, 2000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const loadStatus = async () => {
@@ -70,37 +73,16 @@ function Content() {
   const handleHibernate = async () => {
     setIsLoading(true);
     try {
-      if (autoSetup) {
-        // Use the complete workflow
-        const result = await hibernateNow();
-        
-        if (!result.success) {
-          toaster.toast({
-            title: "Hibernation Failed",
-            body: result.error || "Unknown error occurred"
-          });
-        }
-        // If successful, system will hibernate and we won't reach here
-      } else {
-        // Just trigger hibernation without auto-setup
-        if (!status?.ready) {
-          toaster.toast({
-            title: "Not Ready",
-            body: "Please run setup first or enable auto-setup"
-          });
-          setIsLoading(false);
-          return;
-        }
-
-        const result = await triggerHibernate();
-        
-        if (!result.success) {
-          toaster.toast({
-            title: "Hibernation Failed",
-            body: result.error || "Unknown error occurred"
-          });
-        }
+      // Use the complete workflow - automatically handles setup if needed
+      const result = await hibernateNow();
+      
+      if (!result.success) {
+        toaster.toast({
+          title: "Hibernation Failed",
+          body: result.error || "Unknown error occurred"
+        });
       }
+      // If successful, system will hibernate and we won't reach here
     } catch (error) {
       console.error("Hibernate failed:", error);
       toaster.toast({
@@ -144,15 +126,6 @@ function Content() {
       </PanelSectionRow>
 
       <PanelSectionRow>
-        <ToggleField
-          label="Auto-setup"
-          description="Automatically configure hibernation before hibernating"
-          checked={autoSetup}
-          onChange={(value) => setAutoSetup(value)}
-        />
-      </PanelSectionRow>
-
-      <PanelSectionRow>
         <ButtonItem
           layout="below"
           onClick={handleHibernate}
@@ -173,16 +146,6 @@ function Content() {
           </ButtonItem>
         </PanelSectionRow>
       )}
-
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={loadStatus}
-          disabled={isLoading}
-        >
-          Refresh Status
-        </ButtonItem>
-      </PanelSectionRow>
 
       {status && !status.success && (
         <PanelSectionRow>

@@ -1,6 +1,6 @@
 {
-  "name": "hibernado",
-  "version": "1.0.0",
+  "name": "Hibernado",
+  "version": "1.0.1",
   "description": "A Decky plugin for Steam Deck hibernation with automatic swap and kernel configuration",
   "type": "module",
   "scripts": {
