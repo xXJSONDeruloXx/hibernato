@@ -1,5 +1,5 @@
 {
-  "name": "hibernato",
+  "name": "hibernado",
   "version": "1.0.0",
   "description": "A Decky plugin for Steam Deck hibernation with automatic swap and kernel configuration",
   "type": "module",
@@ -10,7 +10,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xXJSONDeruloXx/hibernato.git"
+    "url": "git+https://github.com/xXJSONDeruloXx/hibernado.git"
   },
   "keywords": [
     "decky",
@@ -23,9 +23,9 @@
   "author": "Kurt",
   "license": "BSD-3-Clause",
   "bugs": {
-    "url": "https://github.com/xXJSONDeruloXx/hibernato/issues"
+    "url": "https://github.com/xXJSONDeruloXx/hibernado/issues"
   },
-  "homepage": "https://github.com/xXJSONDeruloXx/hibernato#readme",
+  "homepage": "https://github.com/xXJSONDeruloXx/hibernado#readme",
   "devDependencies": {
     "@decky/rollup": "^1.0.1",
     "@decky/ui": "^4.7.2",

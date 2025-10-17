@@ -26,7 +26,7 @@ class Plugin:
         # Make sure helper script is executable
         if self.helper_script.exists():
             os.chmod(self.helper_script, 0o755)
-            decky.logger.info(f"Hibernato plugin loaded! Helper script: {self.helper_script}")
+            decky.logger.info(f"hibernado plugin loaded! Helper script: {self.helper_script}")
         else:
             decky.logger.error(f"Helper script not found at {self.helper_script}")
         
@@ -54,18 +54,18 @@ class Plugin:
     # Function called first during the unload process, utilize this to handle your plugin being stopped, but not
     # completely removed
     async def _unload(self):
-        decky.logger.info("Hibernato plugin unloading...")
+        decky.logger.info("hibernado plugin unloading...")
         pass
 
     # Function called after `_unload` during uninstall, utilize this to clean up processes and other remnants of your
     # plugin that may remain on the system
     async def _uninstall(self):
-        decky.logger.info("Hibernato plugin uninstalled!")
+        decky.logger.info("hibernado plugin uninstalled!")
         pass
 
     # Migrations that should be performed before entering `_main()`.
     async def _migration(self):
-        decky.logger.info("Migrating Hibernato settings...")
+        decky.logger.info("Migrating hibernado settings...")
         pass
 
     async def check_hibernate_status(self) -> dict:

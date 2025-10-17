@@ -1,5 +1,5 @@
 #!/bin/bash
-# Hibernato Helper Script
+# hibernado Helper Script
 # This script runs with proper system environment to avoid library conflicts
 
 set -e

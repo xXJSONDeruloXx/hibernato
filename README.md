@@ -1,10 +1,10 @@
-# Hibernato
+# hibernado
 
 A Decky Loader plugin that enables hibernation functionality on Steam Deck with automated swap configuration and kernel parameter management.
 
 ## Overview
 
-Hibernato provides a streamlined interface for hibernating the Steam Deck. The plugin handles all necessary system configuration, including swapfile creation, swap activation, and kernel resume parameter setup. It operates with root privileges to manage system-level operations required for hibernation.
+hibernado provides a streamlined interface for hibernating the Steam Deck. The plugin handles all necessary system configuration, including swapfile creation, swap activation, and kernel resume parameter setup. It operates with root privileges to manage system-level operations required for hibernation.
 
 ## Features
 
@@ -32,7 +32,7 @@ The plugin operates in three phases:
 2. **Preparation**: Creates swapfile at `/home/swapfile`, activates swap, calculates file offset, updates kernel parameters
 3. **Hibernation**: Syncs filesystems and writes to `/sys/power/state` to trigger suspend-to-disk
 
-Hibernato requires root privileges (`"flags": ["root"]` in `plugin.json`) to perform privileged operations without PolicyKit interaction.
+hibernado requires root privileges (`"flags": ["root"]` in `plugin.json`) to perform privileged operations without PolicyKit interaction.
 
 ## Installation
 
@@ -50,9 +50,9 @@ Install directly from the Decky Plugin Store browser within Steam Deck's Gaming 
 
 2. Package and deploy:
    ```bash
-   # Output will be in out/Hibernato.zip
+   # Output will be in out/hibernado.zip
    # Transfer to Steam Deck and extract to:
-   # ~/homebrew/plugins/Hibernato/
+   # ~/homebrew/plugins/hibernado/
    ```
 
 3. Restart Decky Loader to load the plugin.
@@ -82,7 +82,7 @@ pnpm run watch
 ### Project Structure
 
 ```
-hibernato/
+hibernado/
 ├── src/
 │   ├── index.tsx          # Frontend UI implementation
 │   └── types.d.ts         # TypeScript definitions
@@ -114,7 +114,7 @@ hibernato/
 
 ### First Time Setup
 
-1. Open Hibernato from the Decky menu
+1. Open hibernado from the Decky menu
 2. Check the hibernation status indicator
 3. If not ready, click "Setup Hibernation" or enable "Auto-setup" toggle
 4. The plugin will configure swapfile and kernel parameters automatically

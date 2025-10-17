@@ -14,7 +14,7 @@ import {
   toaster,
 } from "@decky/api"
 import { useState, useEffect } from "react";
-import { VscDebugStart } from "react-icons/vsc";
+import { FaTornado } from "react-icons/fa6";
 
 // Backend callable functions
 const checkHibernateStatus = callable<[], any>("check_hibernate_status");
@@ -222,7 +222,7 @@ function Content() {
 };
 
 export default definePlugin(() => {
-  console.log("Hibernato plugin initializing...")
+  console.log("hibernado plugin initializing...")
 
   // Add an event listener for hibernate progress updates
   const progressListener = addEventListener<[message: string]>(
@@ -230,7 +230,7 @@ export default definePlugin(() => {
     (message) => {
       console.log("Hibernate progress:", message);
       toaster.toast({
-        title: "Hibernato",
+        title: "hibernado",
         body: message
       });
     }
@@ -238,16 +238,16 @@ export default definePlugin(() => {
 
   return {
     // The name shown in various decky menus
-    name: "Hibernato",
+    name: "hibernado",
     // The element displayed at the top of your plugin's menu
-    titleView: <div className={staticClasses.Title}>Hibernato</div>,
+    titleView: <div className={staticClasses.Title}>hibernado</div>,
     // The content of your plugin's menu
     content: <Content />,
     // The icon displayed in the plugin list
-    icon: <VscDebugStart />,
+    icon: <FaTornado />,
     // The function triggered when your plugin unloads
     onDismount() {
-      console.log("Hibernato unloading...")
+      console.log("hibernado unloading...")
       removeEventListener("hibernate_progress", progressListener);
     },
   };
