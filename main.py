@@ -60,8 +60,20 @@ class Plugin:
     # Function called after `_unload` during uninstall, utilize this to clean up processes and other remnants of your
     # plugin that may remain on the system
     async def _uninstall(self):
+        decky.logger.info("hibernado plugin uninstalling - cleaning up hibernation setup...")
+        try:
+            # Clean up all hibernation-related changes
+            returncode, stdout, stderr = self._run_helper("cleanup", timeout=60)
+            
+            if returncode != 0:
+                decky.logger.error(f"Cleanup failed: {stderr}")
+            else:
+                decky.logger.info("Hibernation setup cleaned up successfully")
+                
+        except Exception as e:
+            decky.logger.error(f"Error during uninstall cleanup: {e}")
+        
         decky.logger.info("hibernado plugin uninstalled!")
-        pass
 
     # Migrations that should be performed before entering `_main()`.
     async def _migration(self):

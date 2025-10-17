@@ -70,8 +70,45 @@ case "$ACTION" in
         echo disk > /sys/power/state
         ;;
         
+    cleanup)
+        # Clean up hibernation setup during plugin uninstall
+        SWAP=/home/swapfile
+        
+        echo "Cleaning up hibernation configuration..."
+        
+        # Unlock filesystem
+        steamos-readonly disable
+        
+        # Remove resume parameters from kernel cmdline
+        if [ -f /etc/kernel/cmdline ]; then
+            echo "Removing resume parameters from kernel cmdline..."
+            sed -i '/resume=/d' /etc/kernel/cmdline
+            
+            # Rebuild kernel configuration
+            echo "Rebuilding kernel configuration..."
+            kernel-install add-current >/dev/null 2>&1 || true
+        fi
+        
+        # Deactivate swap if active
+        if swapon --show=NAME | grep -q "$SWAP"; then
+            echo "Deactivating swap..."
+            swapoff "$SWAP" || true
+        fi
+        
+        # Remove swapfile if it exists
+        if [ -f "$SWAP" ]; then
+            echo "Removing swapfile..."
+            rm -f "$SWAP" || true
+        fi
+        
+        # Re-lock filesystem
+        steamos-readonly enable
+        
+        echo "Cleanup complete"
+        ;;
+        
     *)
-        echo "Usage: $0 {status|prepare|hibernate}"
+        echo "Usage: $0 {status|prepare|hibernate|cleanup}"
         exit 1
         ;;
 esac
