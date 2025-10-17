@@ -1,101 +1,186 @@
-# Decky Plugin Template [![Chat](https://img.shields.io/badge/chat-on%20discord-7289da.svg)](https://deckbrew.xyz/discord)
+# Hibernato
 
-Reference example for using [decky-frontend-lib](https://github.com/SteamDeckHomebrew/decky-frontend-lib) (@decky/ui) in a [decky-loader](https://github.com/SteamDeckHomebrew/decky-loader) plugin.
+A Decky Loader plugin that enables hibernation functionality on Steam Deck with automated swap configuration and kernel parameter management.
 
-### **Please also refer to the [wiki](https://wiki.deckbrew.xyz/en/user-guide/home#plugin-development) for important information on plugin development and submissions/updates. currently documentation is split between this README and the wiki which is something we are hoping to rectify in the future.**  
+## Overview
 
-## Developers
+Hibernato provides a streamlined interface for hibernating the Steam Deck. The plugin handles all necessary system configuration, including swapfile creation, swap activation, and kernel resume parameter setup. It operates with root privileges to manage system-level operations required for hibernation.
 
-### Dependencies
+## Features
 
-This template relies on the user having Node.js v16.14+ and `pnpm` (v9) installed on their system.  
-Please make sure to install pnpm v9 to prevent issues with CI during plugin submission.  
-`pnpm` can be downloaded from `npm` itself which is recommended.
+- **Automated Setup**: Automatically configures hibernation prerequisites on first use
+- **Status Monitoring**: Real-time display of hibernation readiness and configuration state
+- **Swapfile Management**: Creates and activates swapfile sized appropriately for system memory
+- **Kernel Configuration**: Manages resume parameters in `/etc/kernel/cmdline` for proper wake-up
+- **Manual Control**: Option to manually trigger setup or use auto-configuration mode
+- **State Persistence**: Configuration persists across system updates when properly managed
 
-#### Linux
+## Architecture
+
+### Components
+
+- **Frontend** (`src/index.tsx`): React-based UI using Decky Frontend Library
+- **Backend** (`main.py`): Python plugin service running with root privileges
+- **Helper Script** (`bin/hibernate-helper.sh`): Bash script for system-level operations
+- **Plugin Metadata** (`plugin.json`, `package.json`): Configuration and dependency definitions
+
+### Technical Implementation
+
+The plugin operates in three phases:
+
+1. **Status Check**: Validates swapfile existence, swap activation state, and resume configuration
+2. **Preparation**: Creates swapfile at `/home/swapfile`, activates swap, calculates file offset, updates kernel parameters
+3. **Hibernation**: Syncs filesystems and writes to `/sys/power/state` to trigger suspend-to-disk
+
+Hibernato requires root privileges (`"flags": ["root"]` in `plugin.json`) to perform privileged operations without PolicyKit interaction.
+
+## Installation
+
+### Via Decky Plugin Store
+
+Install directly from the Decky Plugin Store browser within Steam Deck's Gaming Mode.
+
+### Manual Installation
+
+1. Build the plugin:
+   ```bash
+   pnpm install
+   pnpm run build
+   ```
+
+2. Package and deploy:
+   ```bash
+   # Output will be in out/Hibernato.zip
+   # Transfer to Steam Deck and extract to:
+   # ~/homebrew/plugins/Hibernato/
+   ```
+
+3. Restart Decky Loader to load the plugin.
+
+## Development
+
+### Prerequisites
+
+- Node.js v16.14 or later
+- pnpm v9
+- Docker (for backend builds, if needed)
+- Access to Steam Deck or compatible system for testing
+
+### Build Environment Setup
 
 ```bash
-sudo npm i -g pnpm@9
+# Install dependencies
+pnpm install
+
+# Build frontend
+pnpm run build
+
+# Watch mode for development
+pnpm run watch
 ```
 
-If you would like to build plugins that have their own custom backends, Docker is required as it is used by the Decky CLI tool.
+### Project Structure
 
-### Making your own plugin
-
-1. You can fork this repo or utilize the "Use this template" button on Github.
-2. In your local fork/own plugin-repository run these commands:
-   1. ``pnpm i``
-   2. ``pnpm run build``
-   - These setup pnpm and build the frontend code for testing.
-3. Consult the [decky-frontend-lib](https://github.com/SteamDeckHomebrew/decky-frontend-lib) repository for ways to accomplish your tasks.
-   - Documentation and examples are still rough, 
-   - Decky loader primarily targets Steam Deck hardware so keep this in mind when developing your plugin.
-4. If using VSCodium/VSCode, run the `setup` and `build` and `deploy` tasks. If not using VSCodium etc. you can derive your own makefile or just manually utilize the scripts for these commands as you see fit.
-
-If you use VSCode or it's derivatives (we suggest [VSCodium](https://vscodium.com/)!) just run the `setup` and `build` tasks. It's really that simple.
-
-#### Other important information
-
-Everytime you change the frontend code (`index.tsx` etc) you will need to rebuild using the commands from step 2 above or the build task if you're using vscode or a derivative.
-
-Note: If you are receiving build errors due to an out of date library, you should run this command inside of your repository:
-
-```bash
-pnpm update @decky/ui --latest
+```
+hibernato/
+├── src/
+│   ├── index.tsx          # Frontend UI implementation
+│   └── types.d.ts         # TypeScript definitions
+├── main.py                # Backend plugin service
+├── bin/
+│   └── hibernate-helper.sh # System operation script
+├── backend/               # Legacy backend (not currently used)
+├── plugin.json            # Plugin metadata
+├── package.json           # NPM dependencies
+└── rollup.config.js       # Build configuration
 ```
 
-### Backend support
+### Development Workflow
 
-If you are developing with a backend for a plugin and would like to submit it to the [decky-plugin-database](https://github.com/SteamDeckHomebrew/decky-plugin-database) you will need to have all backend code located in ``backend/src``, with backend being located in the root of your git repository.
-When building your plugin, the source code will be built and any finished binary or binaries will be output to ``backend/out`` (which is created during CI.)
-If your buildscript, makefile or any other build method does not place the binary files in the ``backend/out`` directory they will not be properly picked up during CI and your plugin will not have the required binaries included for distribution.
+1. Make changes to source files
+2. Build with `pnpm run build` or run `build` task in VS Code
+3. Deploy using provided tasks or manual transfer
+4. Test on target device
+5. Monitor logs via `journalctl -f` on Steam Deck
 
-Example:  
-In our makefile used to demonstrate the CI process of building and distributing a plugin backend, note that the makefile explicitly creates the `out` folder (``backend/out``) and then compiles the binary into that folder. Here's the relevant snippet.
+### VS Code Tasks
 
-```make
-hello:
-	mkdir -p ./out
-	gcc -o ./out/hello ./src/main.c
+- `setup`: Install dependencies and configure environment
+- `build`: Compile frontend and backend
+- `deploy`: Transfer plugin to Steam Deck
+- `builddeploy`: Combined build and deployment
+
+## Usage
+
+### First Time Setup
+
+1. Open Hibernato from the Decky menu
+2. Check the hibernation status indicator
+3. If not ready, click "Setup Hibernation" or enable "Auto-setup" toggle
+4. The plugin will configure swapfile and kernel parameters automatically
+
+### Hibernating
+
+1. Ensure "Auto-setup" is enabled (default) or manually run setup
+2. Click "Hibernate Now"
+3. System will sync filesystems and enter hibernation
+4. Resume by pressing the power button
+
+### Status Indicators
+
+- **Green**: Ready for hibernation
+- **Orange**: Partial configuration (e.g., swap exists but kernel not configured)
+- **Red**: Not configured
+
+## Technical Notes
+
+### Swapfile Location
+
+The swapfile is created at `/home/swapfile` with a size of `RAM + 1GB` to ensure sufficient space for hibernation data.
+
+### Kernel Parameters
+
+Resume parameters are appended to `/etc/kernel/cmdline`:
+```
+resume=UUID=<root-uuid> resume_offset=<swapfile-offset>
 ```
 
-The CI does create the `out` folder itself but we recommend creating it yourself if possible during your build process to ensure the build process goes smoothly.
+After modification, `kernel-install add-current` is executed to regenerate the boot image.
 
-Note: When locally building your plugin it will be placed into a folder called 'out' this is different from the concept described above.
+### Read-Only Filesystem
 
-The out folder is not sent to the final plugin, but is then put into a ``bin`` folder which is found at the root of the plugin's directory.  
-More information on the bin folder can be found below in the distribution section below.
+The plugin temporarily disables SteamOS read-only root filesystem protections using `steamos-readonly disable/enable` to modify kernel parameters.
 
-### Distribution
+### Permissions
 
-We recommend following the instructions found in the [decky-plugin-database](https://github.com/SteamDeckHomebrew/decky-plugin-database) on how to get your plugin up on the plugin store. This is the best way to get your plugin in front of users.
-You can also choose to do distribution via a zip file containing the needed files, if that zip file is uploaded to a URL it can then be downloaded and installed via decky-loader.
+Running as root is required for:
+- Creating and activating swapfiles
+- Modifying `/etc/kernel/cmdline`
+- Running `kernel-install`
+- Writing to `/sys/power/state`
 
-**NOTE: We do not currently have a method to install from a downloaded zip file in "game-mode" due to lack of a usable file-picking dialog.**
+## Troubleshooting
 
-Layout of a plugin zip ready for distribution:
-```
-pluginname-v1.0.0.zip (version number is optional but recommended for users sake)
-   |
-   pluginname/ <directory>
-   |  |  |
-   |  |  bin/ <directory> (optional)
-   |  |     |
-   |  |     binary (optional)
-   |  |
-   |  dist/ <directory> [required]
-   |      |
-   |      index.js [required]
-   | 
-   package.json [required]
-   plugin.json [required]
-   main.py {required if you are using the python backend of decky-loader: serverAPI}
-   README.md (optional but recommended)
-   LICENSE(.md) [required, filename should be roughly similar, suffix not needed]
-```
+### Hibernation Fails
 
-Note regarding licenses: Including a license is required for the plugin store if your chosen license requires the license to be included alongside usage of source-code/binaries!
+- Verify swapfile exists: `ls -lh /home/swapfile`
+- Check swap is active: `swapon --show`
+- Validate kernel parameters: `cat /etc/kernel/cmdline`
+- Review plugin logs in Decky Developer console
 
-Standard procedure for licenses is to have your chosen license at the top of the file, and to leave the original license for the plugin-template at the bottom. If this is not the case on submission to the plugin database, you will be asked to fix this discrepancy.
+### Setup Fails
 
-We cannot and will not distribute your plugin on the Plugin Store if it's license requires it's inclusion but you have not included a license to be re-distributed with your plugin in the root of your git repository.
+- Ensure sufficient disk space for swapfile
+- Check filesystem is writable
+- Verify root privileges are granted to plugin
+- Examine helper script execution in system logs
+
+### Resume Issues
+
+- Confirm resume UUID matches root filesystem
+- Verify resume offset matches swapfile physical offset
+- Check bootloader configuration loaded updated kernel parameters
+
+## License
+
+BSD-3-Clause
