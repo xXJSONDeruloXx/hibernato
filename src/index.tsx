@@ -7,8 +7,6 @@ import {
   Field
 } from "@decky/ui";
 import {
-  addEventListener,
-  removeEventListener,
   callable,
   definePlugin,
   toaster,
@@ -48,18 +46,9 @@ function Content() {
   const handlePrepare = async () => {
     setIsLoading(true);
     try {
-      toaster.toast({
-        title: "Preparing Hibernation",
-        body: "Setting up swapfile and kernel parameters..."
-      });
-
       const result = await prepareHibernate();
       
       if (result.success) {
-        toaster.toast({
-          title: "Setup Complete",
-          body: result.message || "Hibernation is now ready!"
-        });
         await loadStatus();
       } else {
         toaster.toast({
@@ -83,11 +72,6 @@ function Content() {
     try {
       if (autoSetup) {
         // Use the complete workflow
-        toaster.toast({
-          title: "Hibernating",
-          body: "Preparing system for hibernation..."
-        });
-
         const result = await hibernateNow();
         
         if (!result.success) {
@@ -224,18 +208,6 @@ function Content() {
 export default definePlugin(() => {
   console.log("hibernado plugin initializing...")
 
-  // Add an event listener for hibernate progress updates
-  const progressListener = addEventListener<[message: string]>(
-    "hibernate_progress",
-    (message) => {
-      console.log("Hibernate progress:", message);
-      toaster.toast({
-        title: "hibernado",
-        body: message
-      });
-    }
-  );
-
   return {
     // The name shown in various decky menus
     name: "hibernado",
@@ -248,7 +220,6 @@ export default definePlugin(() => {
     // The function triggered when your plugin unloads
     onDismount() {
       console.log("hibernado unloading...")
-      removeEventListener("hibernate_progress", progressListener);
     },
   };
 });

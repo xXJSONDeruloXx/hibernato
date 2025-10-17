@@ -143,14 +143,12 @@ class Plugin:
         """Prepare the system for hibernation by setting up swap and resume parameters"""
         try:
             decky.logger.info("Starting hibernate preparation...")
-            await decky.emit("hibernate_progress", "Preparing hibernation setup...")
             
             returncode, stdout, stderr = self._run_helper("prepare", timeout=60)
             
             if returncode != 0:
                 error_msg = stderr or "Unknown error during setup"
                 decky.logger.error(f"Hibernate preparation failed: {error_msg}")
-                await decky.emit("hibernate_progress", f"Setup failed: {error_msg}")
                 return {
                     "success": False,
                     "error": error_msg
@@ -164,7 +162,6 @@ class Plugin:
                 offset = parts[1] if len(parts) > 1 else "unknown"
                 
                 decky.logger.info(f"Hibernate setup complete - UUID: {uuid}, Offset: {offset}")
-                await decky.emit("hibernate_progress", "Setup complete!")
                 
                 return {
                     "success": True,
@@ -174,7 +171,6 @@ class Plugin:
                 }
             else:
                 decky.logger.info("Hibernate setup completed")
-                await decky.emit("hibernate_progress", "Setup complete!")
                 return {
                     "success": True,
                     "message": "Hibernation setup completed successfully"
@@ -183,7 +179,6 @@ class Plugin:
         except Exception as e:
             error_msg = str(e)
             decky.logger.error(f"Error in prepare_hibernate: {error_msg}")
-            await decky.emit("hibernate_progress", f"Error: {error_msg}")
             return {
                 "success": False,
                 "error": error_msg
@@ -193,7 +188,6 @@ class Plugin:
         """Trigger system hibernation"""
         try:
             decky.logger.info("Triggering hibernation...")
-            await decky.emit("hibernate_progress", "Hibernating now...")
             
             # Write directly to /sys/power/state from Python
             # This avoids any subprocess permission issues
@@ -247,14 +241,12 @@ class Plugin:
             # If not ready, prepare first
             if not status.get("ready", False):
                 decky.logger.info("System not ready for hibernation, preparing...")
-                await decky.emit("hibernate_progress", "Setting up hibernation...")
                 
                 prep_result = await self.prepare_hibernate()
                 if not prep_result.get("success", False):
                     return prep_result
             else:
                 decky.logger.info("System already configured for hibernation")
-                await decky.emit("hibernate_progress", "System ready, hibernating...")
             
             # Trigger hibernation
             return await self.trigger_hibernate()
