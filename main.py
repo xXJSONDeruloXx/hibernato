@@ -14,6 +14,11 @@ class Plugin:
     async def _main(self):
         self.loop = asyncio.get_event_loop()
         
+        # Log effective user for debugging
+        import pwd
+        effective_user = pwd.getpwuid(os.getuid()).pw_name
+        decky.logger.info(f"Plugin running as user: {effective_user} (UID: {os.getuid()})")
+        
         # Get the helper script path
         plugin_dir = Path(decky.DECKY_PLUGIN_DIR)
         self.helper_script = plugin_dir / "bin" / "hibernate-helper.sh"
@@ -178,14 +183,20 @@ class Plugin:
             decky.logger.info("Triggering hibernation...")
             await decky.emit("hibernate_progress", "Hibernating now...")
             
-            # Use helper script to avoid library conflicts
-            # Don't wait for this to complete as system will be hibernating
-            returncode, stdout, stderr = self._run_helper("hibernate", timeout=5)
+            # Write directly to /sys/power/state from Python
+            # This avoids any subprocess permission issues
+            # Sync filesystems first
+            subprocess.run(["/usr/bin/sync"], check=False)
             
-            # If we get here and there's an error, report it
-            if returncode != 0 and stderr:
-                error_msg = stderr or "Failed to trigger hibernation"
-                decky.logger.error(f"Hibernation trigger failed: {error_msg}")
+            # Write 'disk' to trigger hibernation
+            # Using direct file write since we're running as root
+            try:
+                with open("/sys/power/state", "w") as f:
+                    f.write("disk\n")
+                    f.flush()
+            except Exception as write_error:
+                error_msg = f"Failed to write to /sys/power/state: {write_error}"
+                decky.logger.error(error_msg)
                 return {
                     "success": False,
                     "error": error_msg

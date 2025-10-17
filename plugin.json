@@ -1,10 +1,10 @@
 {
   "name": "Hibernato",
   "author": "Kurt",
-  "flags": ["_root"],
+  "flags": ["root"],
   "api_version": 1,
   "publish": {
-    "tags": ["power-management", "hibernate", "steam-deck"],
+    "tags": ["power-management", "hibernate", "steam-deck", "root"],
     "description": "A simple hibernation plugin for Steam Deck that handles swap setup and kernel configuration automatically.",
     "image": "https://opengraph.githubassets.com/1/SteamDeckHomebrew/PluginLoader"
   }

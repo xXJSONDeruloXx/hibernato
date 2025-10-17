@@ -62,9 +62,12 @@ case "$ACTION" in
         ;;
         
     hibernate)
-        # Trigger hibernation using system systemctl (not bundled with Decky)
-        # Use absolute path to avoid library conflicts
-        /usr/bin/systemctl hibernate
+        # Trigger hibernation by writing directly to the power state file
+        # This bypasses systemctl/PolicyKit and works when running as root
+        # Sync filesystems first for safety
+        sync
+        # Write 'disk' to trigger hibernation
+        echo disk > /sys/power/state
         ;;
         
     *)
