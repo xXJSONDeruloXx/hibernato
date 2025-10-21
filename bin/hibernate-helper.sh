@@ -36,8 +36,8 @@ case "$ACTION" in
             exit 0
         fi
         
-        # Check resume parameters in GRUB config
-        if ! grep -q "resume=" /etc/default/grub 2>/dev/null; then
+        # Check resume parameters in GRUB config (check our hibernado.cfg file)
+        if [ ! -f /etc/default/grub.d/hibernado.cfg ] || ! grep -q "resume=" /etc/default/grub.d/hibernado.cfg 2>/dev/null; then
             echo "RESUME_NOT_CONFIGURED"
             exit 0
         fi

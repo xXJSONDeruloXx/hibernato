@@ -14,3 +14,6 @@ clean:
     rm -rf dist
     rm -rf node_modules
     rm -rf .rollup.cache
+
+watch:
+    ssh deck@192.168.0.6 'journalctl --follow'
