@@ -88,55 +88,78 @@ case "$ACTION" in
         
         log "Setting up hibernation (filesystem-friendly method)..."
         
-        # 1. Ensure swapfile exists and is large enough (20GB recommended)
+        # 1. Check if swapfile exists and is large enough
+        NEEDS_RECREATION=false
+        if [ -f "$SWAP" ]; then
+            SWAP_SIZE=$(stat -c "%s" "$SWAP" 2>/dev/null || echo 0)
+            TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+            MIN_SIZE=$((TOTAL_RAM_KB * 1024))  # RAM size in bytes (minimum)
+            
+            if [ "$SWAP_SIZE" -lt "$MIN_SIZE" ]; then
+                log "Existing swapfile is too small (${SWAP_SIZE} bytes < ${MIN_SIZE} bytes required)"
+                NEEDS_RECREATION=true
+            fi
+            
+            # Also check if it's a valid swap file
+            if ! file "$SWAP" | grep -q "swap file"; then
+                log "Existing swapfile is invalid"
+                NEEDS_RECREATION=true
+            fi
+        else
+            log "Swapfile does not exist"
+            NEEDS_RECREATION=true
+        fi
+        
+        # 2. Deactivate swap if we need to recreate it
+        if [ "$NEEDS_RECREATION" = true ]; then
+            if swapon --show=NAME | grep -q "$SWAP"; then
+                log "Deactivating existing swapfile for recreation..."
+                swapoff "$SWAP" 2>&1 || log "WARNING: Failed to deactivate swapfile"
+            fi
+            
+            log "Removing old swapfile..."
+            rm -f "$SWAP"
+            
+            # Calculate swap size: Total RAM + 1GB
+            SWAP_SIZE_MB=$(( $(grep MemTotal /proc/meminfo | awk '{print $2}') / 1024 + 1024 ))
+            log "Creating ${SWAP_SIZE_MB}MB swapfile (RAM + 1GB) using fallocate..."
+            
+            if ! fallocate -l ${SWAP_SIZE_MB}M "$SWAP" 2>&1; then
+                log "ERROR: Failed to create swapfile with fallocate"
+                echo "ERROR: Failed to create swapfile" >&2
+                exit 1
+            fi
+            log "Swapfile created successfully"
+            
+            log "Setting swapfile permissions..."
+            chmod 600 "$SWAP"
+            
+            log "Formatting swapfile..."
+            if ! mkswap "$SWAP" >/dev/null 2>&1; then
+                log "ERROR: Failed to format swapfile"
+                echo "ERROR: Failed to format swapfile" >&2
+                exit 1
+            fi
+            log "Swapfile formatted successfully"
+        fi
+        
+        # 3. Ensure swapfile is activated
         if ! swapon --show=NAME | grep -q "$SWAP"; then
-            # Check if swapfile exists but needs to be recreated
-            if [ -f "$SWAP" ]; then
-                SWAP_SIZE=$(stat -c "%s" "$SWAP" 2>/dev/null || echo 0)
-                MIN_SIZE=$((16 * 1024 * 1024 * 1024))  # 16GB in bytes
-                
-                # Check if swapfile is valid by trying to read its header
-                if ! file "$SWAP" | grep -q "swap file" || [ "$SWAP_SIZE" -lt "$MIN_SIZE" ]; then
-                    log "Existing swapfile is invalid or too small, removing and recreating..."
-                    rm -f "$SWAP"
-                fi
-            fi
-            
-            if [ ! -f "$SWAP" ]; then
-                # Calculate swap size: Total RAM + 1GB (same as main branch)
-                # This ensures enough space for hibernation image plus overhead
-                SWAP_SIZE_MB=$(( $(grep MemTotal /proc/meminfo | awk '{print $2}') / 1024 + 1024 ))
-                log "Creating ${SWAP_SIZE_MB}MB swapfile (RAM + 1GB) using fallocate..."
-                
-                # Use fallocate like the main branch - it's much faster than dd
-                # and works well on SteamOS/Steam Deck
-                if ! fallocate -l ${SWAP_SIZE_MB}M "$SWAP" 2>&1; then
-                    log "ERROR: Failed to create swapfile with fallocate"
-                    echo "ERROR: Failed to create swapfile" >&2
-                    exit 1
-                fi
-                log "Swapfile created successfully"
-                
-                log "Setting swapfile permissions..."
-                chmod 600 "$SWAP"
-                
-                log "Formatting swapfile..."
-                if ! mkswap "$SWAP" >/dev/null 2>&1; then
-                    log "ERROR: Failed to format swapfile"
-                    echo "ERROR: Failed to format swapfile" >&2
-                    exit 1
-                fi
-                log "Swapfile formatted successfully"
-            else
-                # Existing swapfile looks good, just fix permissions if needed
-                log "Found existing swapfile, checking permissions..."
-                chmod 600 "$SWAP"
-            fi
-            
-            log "Activating swapfile..."
-            if ! swapon "$SWAP" 2>&1; then
+            log "Activating swapfile with priority for hibernation..."
+            # Use priority -1 (highest priority for user-space swap)
+            if ! swapon -p -1 "$SWAP" 2>&1; then
                 log "ERROR: Failed to activate swapfile"
                 echo "ERROR: Failed to activate swapfile" >&2
+                exit 1
+            fi
+            
+            # Verify swap is active and get its priority
+            if swapon --show=NAME,PRIO | grep -q "$SWAP"; then
+                SWAP_PRIO=$(swapon --show=NAME,PRIO --noheadings | grep "$SWAP" | awk '{print $2}')
+                log "Swapfile activated with priority: $SWAP_PRIO"
+            else
+                log "ERROR: Swapfile activation verification failed"
+                echo "ERROR: Swapfile not showing in active swaps" >&2
                 exit 1
             fi
         else
@@ -159,7 +182,24 @@ case "$ACTION" in
         log "Swapfile UUID: $UUID"
         log "Swapfile offset: $OFF"
         
-        # 2. Update GRUB config (persists across updates better than kernel cmdline)
+        # 2. Create systemd swap unit for persistence and proper hibernation support
+        log "Creating systemd swap unit..."
+        cat > /etc/systemd/system/home-swapfile.swap << EOF
+[Unit]
+Description=Hibernado Swap File
+Documentation=man:systemd.swap(5)
+
+[Swap]
+What=$SWAP
+Priority=-1
+
+[Install]
+WantedBy=swap.target
+EOF
+        systemctl daemon-reload
+        systemctl enable home-swapfile.swap 2>/dev/null || true
+        
+        # 3. Update GRUB config (persists across updates better than kernel cmdline)
         if [ ! -f /etc/default/grub.d/hibernado.cfg ]; then
             log "Configuring GRUB for hibernation resume..."
             mkdir -p /etc/default/grub.d
@@ -176,7 +216,7 @@ EOF
             log "GRUB config already exists"
         fi
         
-        # 3. Configure systemd-logind to bypass hibernation memory check
+        # 4. Configure systemd-logind to bypass hibernation memory check
         log "Configuring systemd-logind..."
         mkdir -p /etc/systemd/system/systemd-logind.service.d
         cat > /etc/systemd/system/systemd-logind.service.d/hibernado-override.conf << EOF
@@ -185,7 +225,7 @@ Environment=SYSTEMD_BYPASS_HIBERNATION_MEMORY_CHECK=1
 EOF
         systemctl daemon-reload
         
-        # 4. Create Bluetooth fix script
+        # 5. Create Bluetooth fix script
         log "Setting up Bluetooth fix for resume..."
         mkdir -p /home/deck/.local/bin
         cat > /home/deck/.local/bin/fix-bluetooth.sh << 'EOF'
@@ -214,7 +254,7 @@ EOF
         chmod +x /home/deck/.local/bin/fix-bluetooth.sh
         chown deck:deck /home/deck/.local/bin/fix-bluetooth.sh
         
-        # 5. Create systemd service for Bluetooth fix
+        # 6. Create systemd service for Bluetooth fix
         log "Creating Bluetooth fix systemd service..."
         cat > /etc/systemd/system/fix-bluetooth-resume.service << EOF
 [Unit]
@@ -231,7 +271,7 @@ EOF
         systemctl daemon-reload
         systemctl enable fix-bluetooth-resume.service
         
-        # 6. Configure sleep.conf for suspend-then-hibernate (60 min default)
+        # 7. Configure sleep.conf for suspend-then-hibernate (60 min default)
         log "Configuring suspend-then-hibernate timing..."
         cat > /etc/systemd/sleep.conf << EOF
 # hibernado plugin - suspend-then-hibernate configuration
@@ -308,7 +348,15 @@ EOF
         log "Reloading systemd configuration..."
         systemctl daemon-reload
         
-        # 6. Deactivate and remove swapfile
+        # 6. Remove systemd swap unit
+        if [ -f /etc/systemd/system/home-swapfile.swap ]; then
+            log "Removing systemd swap unit..."
+            systemctl disable home-swapfile.swap 2>/dev/null || true
+            systemctl stop home-swapfile.swap 2>/dev/null || true
+            rm -f /etc/systemd/system/home-swapfile.swap
+        fi
+        
+        # 7. Deactivate and remove swapfile
         if swapon --show=NAME | grep -q "$SWAP"; then
             log "Deactivating swapfile..."
             swapoff "$SWAP" 2>&1 || log "WARNING: Failed to deactivate swapfile"
