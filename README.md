@@ -1,16 +1,13 @@
 # Hibernado
 
 A Decky Loader plugin that enables hibernation on Steam Deck. 
-## Features
 
 ###  Options
 - **Hibernate Now**: Direct hibernation - system saves state to disk and powers off completely
 - **Suspend then Hibernate**: Suspend to RAM first, then automatically hibernate after 60 minutes (quick resume if within delay, zero battery drain after)
-
-### Safety Features
-- **No Filesystem Unlock Required**: Works entirely within the `/home` partition
-- **Non-Destructive**: All changes are isolated and easily reversible
-- **Automatic Cleanup**: Removes all configuration when plugin is uninstalled
+- Works entirely within the `/home` partition
+- All changes are isolated and easily reversible
+- Removes all configuration when plugin is uninstalled
 
 ## Usage
 
