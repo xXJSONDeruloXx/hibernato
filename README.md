@@ -7,26 +7,10 @@ A Decky Loader plugin that enables hibernation on Steam Deck.
 - **Hibernate Now**: Direct hibernation - system saves state to disk and powers off completely
 - **Suspend then Hibernate**: Suspend to RAM first, then automatically hibernate after 60 minutes (quick resume if within delay, zero battery drain after)
 
-### Automated Setup
-Hibernado handles all hibernation configuration automatically:
-- **Swapfile Management**: Creates optimally-sized swapfile (RAM + 1GB) at `/home/swapfile` using `fallocate`
-- **GRUB Configuration**: Configures kernel resume parameters via `/etc/default/grub.d/hibernado.cfg`
-- **Systemd Integration**: 
-  - Bypass hibernation memory check
-  - Configure suspend-then-hibernate timings (60 min default)
-  - Persistent swap activation via systemd unit
-- **Bluetooth Fix**: Automatically reinitializes Bluetooth driver after resume to prevent connectivity issues
-- **SteamOS Boot Counter**: Resets boot counter after hibernation resume to prevent "failed to boot" menu
-
 ### Safety Features
 - **No Filesystem Unlock Required**: Works entirely within the `/home` partition
 - **Non-Destructive**: All changes are isolated and easily reversible
 - **Automatic Cleanup**: Removes all configuration when plugin is uninstalled
-- **Status Monitoring**: Real-time status indicator (green = ready, orange = partial setup, red = not configured)
-
-## Installation
-
-Install directly from the Decky Plugin Store.
 
 ## Usage
 
