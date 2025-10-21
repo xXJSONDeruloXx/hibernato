@@ -265,12 +265,12 @@ export default definePlugin(() => {
   console.log("hibernado plugin initializing...")
 
   return {
-    name: "hibernado",
-    titleView: <div className={staticClasses.Title}>hibernado</div>,
+    name: "Hibernado",
+    titleView: <div className={staticClasses.Title}>Hibernado</div>,
     content: <Content />,
     icon: <FaTornado />,
     onDismount() {
-      console.log("hibernado unloading...")
+      console.log("Hibernado unloading...")
     },
   };
 });
