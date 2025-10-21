@@ -113,6 +113,35 @@ class Plugin:
         decky.logger.info("Migrating hibernado settings...")
         pass
 
+    async def cleanup_hibernate(self) -> dict:
+        """Remove all hibernation configuration without uninstalling the plugin"""
+        try:
+            decky.logger.info("User requested cleanup of hibernation configuration...")
+            
+            returncode, stdout, stderr = self._run_helper("cleanup", timeout=60)
+            
+            if returncode != 0:
+                error_msg = stderr or "Unknown error during cleanup"
+                decky.logger.error(f"Cleanup failed: {error_msg}")
+                return {
+                    "success": False,
+                    "error": error_msg
+                }
+            
+            decky.logger.info("Hibernation configuration cleaned up successfully")
+            return {
+                "success": True,
+                "message": "All hibernation configuration removed. Reboot recommended."
+            }
+            
+        except Exception as e:
+            error_msg = str(e)
+            decky.logger.error(f"Error during cleanup: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg
+            }
+
     async def check_hibernate_status(self) -> dict:
         """Check if hibernation is currently set up and ready"""
         try:

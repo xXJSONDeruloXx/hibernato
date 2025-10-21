@@ -17,6 +17,7 @@ const checkHibernateStatus = callable<[], any>("check_hibernate_status");
 const prepareHibernate = callable<[], any>("prepare_hibernate");
 const hibernateNow = callable<[], any>("hibernate_now");
 const suspendThenHibernate = callable<[], any>("suspend_then_hibernate");
+const cleanupHibernate = callable<[], any>("cleanup_hibernate");
 
 function Content() {
   const [status, setStatus] = useState<any>(null);
@@ -142,6 +143,39 @@ function Content() {
     }
   };
 
+  const handleCleanup = async () => {
+    setIsLoading(true);
+    toaster.toast({
+      title: "Removing Hibernation",
+      body: "Cleaning up all hibernation configuration..."
+    });
+    
+    try {
+      const result = await cleanupHibernate();
+      
+      if (result.success) {
+        toaster.toast({
+          title: "Cleanup Complete",
+          body: "All hibernation configuration removed. A reboot is recommended."
+        });
+        await loadStatus();
+      } else {
+        toaster.toast({
+          title: "Cleanup Failed",
+          body: result.error || "Unknown error occurred"
+        });
+      }
+    } catch (error) {
+      console.error("Cleanup failed:", error);
+      toaster.toast({
+        title: "Cleanup Error",
+        body: String(error)
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const getStatusColor = () => {
     if (!status) return "#888";
     if (status.ready) return "#4CAF50";
@@ -251,11 +285,23 @@ function Content() {
       )}
       
       {status?.ready && (
-        <PanelSectionRow>
-          <div style={{ fontSize: "0.75em", color: "#666", marginTop: "12px", fontStyle: "italic" }}>
-            Hibernation saves RAM to disk and powers off. Resume is slower than sleep but preserves battery.
-          </div>
-        </PanelSectionRow>
+        <>
+          <PanelSectionRow>
+            <div style={{ fontSize: "0.75em", color: "#666", marginTop: "12px", fontStyle: "italic" }}>
+              Hibernation saves RAM to disk and powers off. Resume is slower than sleep but preserves battery.
+            </div>
+          </PanelSectionRow>
+          
+          <PanelSectionRow>
+            <ButtonItem
+              layout="below"
+              onClick={handleCleanup}
+              disabled={isLoading}
+            >
+              {isLoading ? "Removing..." : "Remove Hibernation"}
+            </ButtonItem>
+          </PanelSectionRow>
+        </>
       )}
     </PanelSection>
   );
