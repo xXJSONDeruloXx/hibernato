@@ -17,14 +17,17 @@ case "$ACTION" in
         # Check hibernation status
         SWAP="/home/swapfile"
         
-        # Check swapfile exists and has minimum size (16GB)
+        # Check swapfile exists
         if [ ! -f "$SWAP" ]; then
             echo "SWAPFILE_MISSING"
             exit 0
         fi
         
+        # Check swapfile has reasonable size (at least total RAM in bytes)
+        # We create RAM+1GB, so minimum should be at least RAM size
         SWAP_SIZE=$(stat -c "%s" "$SWAP" 2>/dev/null || echo 0)
-        MIN_SIZE=$((16 * 1024 * 1024 * 1024))  # 16GB in bytes
+        TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+        MIN_SIZE=$((TOTAL_RAM_KB * 1024))  # Convert KB to bytes
         if [ "$SWAP_SIZE" -lt "$MIN_SIZE" ]; then
             echo "SWAPFILE_TOO_SMALL"
             exit 0
@@ -265,40 +268,59 @@ EOF
         
         log "Cleaning up hibernation configuration..."
         
-        # Remove GRUB config
+        # 1. Remove GRUB config and rebuild
         if [ -f /etc/default/grub.d/hibernado.cfg ]; then
             log "Removing GRUB hibernation config..."
             rm -f /etc/default/grub.d/hibernado.cfg
-            update-grub 2>/dev/null || echo "NOTE: Please run 'sudo update-grub' manually"
+            # Clean up empty grub.d directory if it exists and is empty
+            rmdir /etc/default/grub.d 2>/dev/null || true
+            log "Rebuilding GRUB configuration..."
+            if ! update-grub 2>&1; then
+                log "WARNING: update-grub failed"
+                echo "NOTE: Please run 'sudo update-grub' manually" >&2
+            else
+                log "GRUB configuration updated successfully"
+            fi
         fi
         
-        # Remove systemd-logind override
+        # 2. Remove systemd-logind override
         if [ -f /etc/systemd/system/systemd-logind.service.d/hibernado-override.conf ]; then
             log "Removing systemd-logind override..."
             rm -f /etc/systemd/system/systemd-logind.service.d/hibernado-override.conf
             rmdir /etc/systemd/system/systemd-logind.service.d 2>/dev/null || true
-            systemctl daemon-reload
         fi
         
-        # Disable and remove Bluetooth fix service
+        # 3. Disable and remove Bluetooth fix service
         log "Removing Bluetooth fix service..."
         systemctl disable fix-bluetooth-resume.service 2>/dev/null || true
         rm -f /etc/systemd/system/fix-bluetooth-resume.service
         rm -f /home/deck/.local/bin/fix-bluetooth.sh
-        systemctl daemon-reload
+        # Clean up empty .local/bin directory if it exists and is empty
+        rmdir /home/deck/.local/bin 2>/dev/null || true
         
-        # Remove sleep.conf
+        # 4. Remove sleep.conf
         if [ -f /etc/systemd/sleep.conf ]; then
             log "Removing sleep configuration..."
             rm -f /etc/systemd/sleep.conf
         fi
         
-        # Deactivate swap if active (but don't remove it - might be used by other tools)
+        # 5. Reload systemd to apply all changes
+        log "Reloading systemd configuration..."
+        systemctl daemon-reload
+        
+        # 6. Deactivate and remove swapfile
         if swapon --show=NAME | grep -q "$SWAP"; then
-            echo "Note: Swapfile left in place. Remove manually if desired: sudo swapoff $SWAP && sudo rm $SWAP"
+            log "Deactivating swapfile..."
+            swapoff "$SWAP" 2>&1 || log "WARNING: Failed to deactivate swapfile"
         fi
         
-        log "Cleanup complete. All systemd and GRUB changes have been applied."
+        if [ -f "$SWAP" ]; then
+            log "Removing swapfile..."
+            rm -f "$SWAP" 2>&1 || log "WARNING: Failed to remove swapfile"
+        fi
+        
+        log "Cleanup complete. All hibernation configuration has been removed."
+        log "NOTE: A reboot is recommended to ensure all kernel parameters are reset."
         ;;
         
     *)
