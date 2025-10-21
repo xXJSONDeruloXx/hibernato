@@ -23,10 +23,22 @@ function Content() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Reset loading state in case we're waking from suspend/hibernate
-    setIsLoading(false);
+    // Initial load
     loadStatus();
-  }, []);
+
+    // Poll status every 3 seconds to keep UI in sync and reset loading state after hibernation
+    const interval = setInterval(() => {
+      loadStatus();
+      // Reset loading state if we're somehow stuck (e.g., after resuming from hibernation)
+      if (isLoading) {
+        setIsLoading(false);
+      }
+    }, 3000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [isLoading]);
 
   const loadStatus = async () => {
     try {
