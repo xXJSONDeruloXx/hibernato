@@ -13,7 +13,6 @@ class Plugin:
         the system hasn't actually failed to boot, so we reset the counter.
         """
         try:
-            # SteamOS-specific: Use steamos-bootconf to mark boot as successful
             result = subprocess.run(
                 ["/usr/bin/steamos-bootconf", "set-mode", "booted"],
                 capture_output=True,
@@ -41,7 +40,6 @@ class Plugin:
             except Exception:
                 pass
             
-            # Not critical - boot counting may not be available on all systems
             decky.logger.debug("Boot counter reset not available on this system")
             return False
         except Exception as e:
@@ -50,16 +48,12 @@ class Plugin:
 
     async def _main(self):
         self.loop = asyncio.get_event_loop()
-        
-        # Reset boot counter on startup (in case we just resumed from hibernation)
         self._reset_boot_counter()
         
-        # Log effective user for debugging
         import pwd
         effective_user = pwd.getpwuid(os.getuid()).pw_name
         decky.logger.info(f"Plugin running as user: {effective_user} (UID: {os.getuid()})")
         
-        # Get the helper script path
         plugin_dir = Path(decky.DECKY_PLUGIN_DIR)
         self.helper_script = plugin_dir / "bin" / "hibernate-helper.sh"
         
@@ -70,11 +64,7 @@ class Plugin:
             decky.logger.error(f"Helper script not found at {self.helper_script}")
         
     def _run_helper(self, action: str, timeout: int = 60) -> tuple[int, str, str]:
-        """Run the helper script with the given action
-        
-        Note: Plugin runs as root due to "_root" flag in plugin.json,
-        so no sudo is needed.
-        """
+        """Run the helper script with the given action"""
         try:
             result = subprocess.run(
                 [str(self.helper_script), action],
@@ -96,7 +86,6 @@ class Plugin:
     async def _uninstall(self):
         decky.logger.info("hibernado plugin uninstalling - cleaning up hibernation setup...")
         try:
-            # Clean up all hibernation-related changes
             returncode, stdout, stderr = self._run_helper("cleanup", timeout=60)
             
             if returncode != 0:
@@ -265,11 +254,8 @@ class Plugin:
         """Prepare the system for hibernation by setting up swap and resume parameters"""
         try:
             decky.logger.info("Starting hibernate preparation...")
-            
-            # Timeout for swapfile creation - fallocate is fast, but allow time for grub updates
             returncode, stdout, stderr = self._run_helper("prepare", timeout=120)
             
-            # Log full output for debugging
             decky.logger.info(f"Helper script returncode: {returncode}")
             if stdout:
                 decky.logger.info(f"Helper script stdout: {stdout}")
@@ -317,15 +303,10 @@ class Plugin:
     async def trigger_hibernate(self) -> dict:
         """Trigger system hibernation"""
         try:
-            # Reset boot counter before hibernating (best-effort, may not be supported)
             self._reset_boot_counter()
-            
             decky.logger.info("Triggering hibernation...")
             
-            # CRITICAL: Set resume device and offset before hibernating
-            # The kernel needs to know where to write the hibernation image
             try:
-                # Get device for /home
                 result = subprocess.run(
                     ["findmnt", "-no", "SOURCE", "-T", "/home"],
                     capture_output=True,
@@ -339,7 +320,6 @@ class Plugin:
                 dev_path = result.stdout.strip()
                 decky.logger.info(f"Found /home device: {dev_path}")
                 
-                # Get major:minor numbers
                 stat_result = subprocess.run(
                     ["stat", "-c", "%t:%T", dev_path],
                     capture_output=True,
@@ -354,7 +334,6 @@ class Plugin:
                 major = int(major_hex, 16)
                 minor = int(minor_hex, 16)
                 resume_dev = f"{major}:{minor}"
-                
                 decky.logger.info(f"Device numbers: {resume_dev}")
                 
                 # Get swapfile offset
@@ -368,19 +347,16 @@ class Plugin:
                 if result.returncode != 0:
                     raise Exception("Could not get swapfile offset")
                 
-                # Parse offset from filefrag output
                 for line in result.stdout.splitlines():
                     if line.strip().startswith("0:"):
                         parts = line.split()
                         if len(parts) >= 4:
-                            # Remove trailing ".." or "." from offset
                             offset = parts[3].rstrip(".")
                             decky.logger.info(f"Swapfile offset: {offset}")
                             break
                 else:
                     raise Exception("Could not parse swapfile offset")
                 
-                # Write resume parameters to /sys/power/
                 decky.logger.info(f"Setting resume device to {resume_dev}, offset {offset}")
                 
                 with open("/sys/power/resume", "w") as f:
@@ -401,21 +377,16 @@ class Plugin:
                     "error": error_msg
                 }
             
-            # Set hibernation mode to 'platform' (ACPI S4) to ensure proper poweroff
             try:
                 with open("/sys/power/disk", "w") as f:
                     f.write("platform\n")
                     f.flush()
                 decky.logger.info("Hibernation mode set to 'platform'")
             except Exception as disk_error:
-                # Non-fatal, log and continue
                 decky.logger.warning(f"Could not set /sys/power/disk: {disk_error}")
             
-            # Sync filesystems first
             subprocess.run(["/usr/bin/sync"], check=False)
             
-            # Write 'disk' to trigger hibernation
-            # Using direct file write since we're running as root
             try:
                 with open("/sys/power/state", "w") as f:
                     f.write("disk\n")
@@ -435,7 +406,6 @@ class Plugin:
             }
             
         except Exception as e:
-            # Timeout or connection loss is expected as system hibernates
             if "timeout" in str(e).lower() or "timed out" in str(e).lower():
                 decky.logger.info("Hibernation command sent (timeout expected)")
                 return {
@@ -477,7 +447,7 @@ class Plugin:
             }
 
     async def suspend_then_hibernate(self) -> dict:
-        """Suspend (sleep) first, then hibernate after configured delay (typically 1 hour)"""
+        """Suspend (sleep) first, then hibernate after configured delay"""
         try:
             decky.logger.info("Starting suspend-then-hibernate workflow...")
             
@@ -492,9 +462,7 @@ class Plugin:
             else:
                 decky.logger.info("System already configured for hibernation")
             
-            # Reset boot counter before suspending/hibernating (best-effort, may not be supported)
             self._reset_boot_counter()
-            
             decky.logger.info("Triggering suspend-then-hibernate via systemctl...")
             
             returncode, stdout, stderr = self._run_helper("suspend-then-hibernate", timeout=10)

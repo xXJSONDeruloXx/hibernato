@@ -24,13 +24,10 @@ function Content() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Initial load
     loadStatus();
 
-    // Poll status every 3 seconds to keep UI in sync and reset loading state after hibernation
     const interval = setInterval(() => {
       loadStatus();
-      // Reset loading state if we're somehow stuck (e.g., after resuming from hibernation)
       if (isLoading) {
         setIsLoading(false);
       }
@@ -104,7 +101,6 @@ function Content() {
         });
         setIsLoading(false);
       }
-      // If successful, system will hibernate and this won't execute
     } catch (error) {
       console.error("Hibernate failed:", error);
       toaster.toast({
@@ -132,7 +128,6 @@ function Content() {
         });
         setIsLoading(false);
       }
-      // If successful, system will suspend and this won't execute
     } catch (error) {
       console.error("Suspend-then-hibernate failed:", error);
       toaster.toast({
