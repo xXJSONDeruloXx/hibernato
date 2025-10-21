@@ -192,8 +192,8 @@ class Plugin:
         try:
             decky.logger.info("Starting hibernate preparation...")
             
-            # Increase timeout to 300 seconds (5 minutes) for swapfile creation
-            returncode, stdout, stderr = self._run_helper("prepare", timeout=300)
+            # Timeout for swapfile creation - fallocate is fast, but allow time for grub updates
+            returncode, stdout, stderr = self._run_helper("prepare", timeout=120)
             
             # Log full output for debugging
             decky.logger.info(f"Helper script returncode: {returncode}")

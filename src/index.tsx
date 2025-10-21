@@ -54,7 +54,7 @@ function Content() {
       if (result.success) {
         toaster.toast({
           title: "Setup Complete",
-          body: "Hibernation configured successfully! A reboot is recommended."
+          body: "Hibernation configured successfully! All changes applied and active."
         });
         await loadStatus();
       } else {

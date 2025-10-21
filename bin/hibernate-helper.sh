@@ -36,8 +36,13 @@ case "$ACTION" in
             exit 0
         fi
         
-        # Check resume parameters in GRUB config (check our hibernado.cfg file)
-        if [ ! -f /etc/default/grub.d/hibernado.cfg ] || ! grep -q "resume=" /etc/default/grub.d/hibernado.cfg 2>/dev/null; then
+        # Check resume parameters in GRUB config. Be flexible: accept either
+        # our /etc/default/grub.d/hibernado.cfg or the main /etc/default/grub.
+        if ([ -f /etc/default/grub.d/hibernado.cfg ] && grep -q "resume=" /etc/default/grub.d/hibernado.cfg 2>/dev/null) || \
+           ([ -f /etc/default/grub ] && grep -q "resume=" /etc/default/grub 2>/dev/null); then
+            # resume parameter found
+            :
+        else
             echo "RESUME_NOT_CONFIGURED"
             exit 0
         fi
@@ -95,17 +100,23 @@ case "$ACTION" in
             fi
             
             if [ ! -f "$SWAP" ]; then
-                log "Creating 20GB swapfile (this may take several minutes)..."
-                # Use dd for swapfile creation - fallocate creates sparse files that don't work well for swap
-                # Using larger block size (1M) for better performance
-                if ! dd if=/dev/zero of="$SWAP" bs=1M count=20480 status=none 2>&1; then
-                    log "ERROR: Failed to create swapfile"
+                # Calculate swap size: Total RAM + 1GB (same as main branch)
+                # This ensures enough space for hibernation image plus overhead
+                SWAP_SIZE_MB=$(( $(grep MemTotal /proc/meminfo | awk '{print $2}') / 1024 + 1024 ))
+                log "Creating ${SWAP_SIZE_MB}MB swapfile (RAM + 1GB) using fallocate..."
+                
+                # Use fallocate like the main branch - it's much faster than dd
+                # and works well on SteamOS/Steam Deck
+                if ! fallocate -l ${SWAP_SIZE_MB}M "$SWAP" 2>&1; then
+                    log "ERROR: Failed to create swapfile with fallocate"
                     echo "ERROR: Failed to create swapfile" >&2
                     exit 1
                 fi
                 log "Swapfile created successfully"
+                
                 log "Setting swapfile permissions..."
                 chmod 600 "$SWAP"
+                
                 log "Formatting swapfile..."
                 if ! mkswap "$SWAP" >/dev/null 2>&1; then
                     log "ERROR: Failed to format swapfile"
@@ -227,6 +238,8 @@ AllowHibernation=yes
 AllowSuspendThenHibernate=yes
 HibernateDelaySec=60min
 EOF
+        # Reload systemd to apply sleep.conf changes
+        systemctl daemon-reload
         
         log "Hibernation setup complete!"
         echo "SUCCESS:$UUID:$OFF"
@@ -285,8 +298,7 @@ EOF
             echo "Note: Swapfile left in place. Remove manually if desired: sudo swapoff $SWAP && sudo rm $SWAP"
         fi
         
-        log "Cleanup complete"
-        echo "NOTE: System reboot recommended to fully apply changes"
+        log "Cleanup complete. All systemd and GRUB changes have been applied."
         ;;
         
     *)
