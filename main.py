@@ -324,6 +324,16 @@ class Plugin:
                     "error": error_msg
                 }
             
+            # Set hibernation mode to 'platform' (ACPI S4) to ensure proper poweroff
+            try:
+                with open("/sys/power/disk", "w") as f:
+                    f.write("platform\n")
+                    f.flush()
+                decky.logger.info("Hibernation mode set to 'platform'")
+            except Exception as disk_error:
+                # Non-fatal, log and continue
+                decky.logger.warning(f"Could not set /sys/power/disk: {disk_error}")
+            
             # Sync filesystems first
             subprocess.run(["/usr/bin/sync"], check=False)
             
