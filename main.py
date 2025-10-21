@@ -9,6 +9,34 @@ class Plugin:
     async def _main(self):
         self.loop = asyncio.get_event_loop()
         
+        # Reset boot counter on startup (in case we just resumed from hibernation)
+        # This prevents the "failed to boot" GRUB menu after multiple hibernations
+        # Try both systemctl (for systemd-bless-boot) and bootctl approaches
+        try:
+            # Try systemctl approach first (marks current boot as good)
+            result = subprocess.run(
+                ["/usr/bin/systemctl", "start", "systemd-bless-boot.service"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                decky.logger.info("Boot marked as successful via systemd-bless-boot")
+            else:
+                # Try bootctl approach as fallback
+                result = subprocess.run(
+                    ["/usr/bin/bootctl", "set-default", "@current"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    decky.logger.info("Boot marked as successful via bootctl")
+                else:
+                    decky.logger.warning(f"Could not reset boot counter: {result.stderr}")
+        except Exception as e:
+            decky.logger.warning(f"Failed to reset boot counter: {e}")
+        
         # Log effective user for debugging
         import pwd
         effective_user = pwd.getpwuid(os.getuid()).pw_name

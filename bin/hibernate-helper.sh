@@ -284,6 +284,25 @@ EOF
         # Reload systemd to apply sleep.conf changes
         systemctl daemon-reload
         
+        # 8. Fix SteamOS boot counter for hibernation resume
+        log "Setting up SteamOS boot counter fix..."
+        cat > /etc/systemd/system/steamos-hibernate-success.service << 'EOF'
+[Unit]
+Description=Mark hibernation resume as successful boot
+After=hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/steamos-boot-manager set-success
+RemainAfterExit=yes
+
+[Install]
+WantedBy=hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+EOF
+        systemctl daemon-reload
+        systemctl enable steamos-hibernate-success.service 2>/dev/null || log "Note: steamos-boot-manager may not be available on this system"
+        
         log "Hibernation setup complete!"
         echo "SUCCESS:$UUID:$OFF"
         ;;
@@ -374,17 +393,22 @@ EOF
         # Clean up empty .local/bin directory if it exists and is empty
         rmdir /home/deck/.local/bin 2>/dev/null || true
         
-        # 4. Remove sleep.conf
+        # 4. Disable and remove SteamOS boot counter fix service
+        log "Removing SteamOS boot counter fix service..."
+        systemctl disable steamos-hibernate-success.service 2>/dev/null || true
+        rm -f /etc/systemd/system/steamos-hibernate-success.service
+        
+        # 5. Remove sleep.conf
         if [ -f /etc/systemd/sleep.conf ]; then
             log "Removing sleep configuration..."
             rm -f /etc/systemd/sleep.conf
         fi
         
-        # 5. Reload systemd to apply all changes
+        # 6. Reload systemd to apply all changes
         log "Reloading systemd configuration..."
         systemctl daemon-reload
         
-        # 6. Remove systemd swap unit
+        # 7. Remove systemd swap unit
         if [ -f /etc/systemd/system/home-swapfile.swap ]; then
             log "Removing systemd swap unit..."
             systemctl disable home-swapfile.swap 2>/dev/null || true

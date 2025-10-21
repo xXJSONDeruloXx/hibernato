@@ -17,3 +17,6 @@ clean:
 
 watch:
     ssh deck@192.168.0.6 'journalctl --follow'
+
+ssh:
+    ssh deck@192.168.0.6
