@@ -6,36 +6,53 @@ import decky
 import asyncio
 
 class Plugin:
-    async def _main(self):
-        self.loop = asyncio.get_event_loop()
+    def _reset_boot_counter(self):
+        """Reset the boot counter to prevent 'failed to boot' menu after hibernation
         
-        # Reset boot counter on startup (in case we just resumed from hibernation)
-        # This prevents the "failed to boot" GRUB menu after multiple hibernations
-        # Try both systemctl (for systemd-bless-boot) and bootctl approaches
+        SteamOS uses steamos-bootconf to track boot attempts. After resuming from hibernation,
+        the system hasn't actually failed to boot, so we reset the counter.
+        """
         try:
-            # Try systemctl approach first (marks current boot as good)
+            # SteamOS-specific: Use steamos-bootconf to mark boot as successful
             result = subprocess.run(
-                ["/usr/bin/systemctl", "start", "systemd-bless-boot.service"],
+                ["/usr/bin/steamos-bootconf", "set-mode", "booted"],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
             if result.returncode == 0:
-                decky.logger.info("Boot marked as successful via systemd-bless-boot")
+                decky.logger.info("Boot counter reset via steamos-bootconf")
+                return True
             else:
-                # Try bootctl approach as fallback
+                decky.logger.warning(f"Could not reset boot counter: {result.stderr}")
+                return False
+        except FileNotFoundError:
+            # Try systemd-bless-boot as fallback for non-SteamOS systems
+            try:
                 result = subprocess.run(
-                    ["/usr/bin/bootctl", "set-default", "@current"],
+                    ["/usr/bin/systemctl", "start", "systemd-bless-boot.service"],
                     capture_output=True,
                     text=True,
                     timeout=5
                 )
                 if result.returncode == 0:
-                    decky.logger.info("Boot marked as successful via bootctl")
-                else:
-                    decky.logger.warning(f"Could not reset boot counter: {result.stderr}")
+                    decky.logger.info("Boot counter reset via systemd-bless-boot")
+                    return True
+            except Exception:
+                pass
+            
+            # Not critical - boot counting may not be available on all systems
+            decky.logger.debug("Boot counter reset not available on this system")
+            return False
         except Exception as e:
             decky.logger.warning(f"Failed to reset boot counter: {e}")
+            return False
+
+    async def _main(self):
+        self.loop = asyncio.get_event_loop()
+        
+        # Reset boot counter on startup (in case we just resumed from hibernation)
+        self._reset_boot_counter()
         
         # Log effective user for debugging
         import pwd
@@ -271,6 +288,9 @@ class Plugin:
     async def trigger_hibernate(self) -> dict:
         """Trigger system hibernation"""
         try:
+            # Reset boot counter before hibernating (best-effort, may not be supported)
+            self._reset_boot_counter()
+            
             decky.logger.info("Triggering hibernation...")
             
             # CRITICAL: Set resume device and offset before hibernating
@@ -442,6 +462,9 @@ class Plugin:
                     return prep_result
             else:
                 decky.logger.info("System already configured for hibernation")
+            
+            # Reset boot counter before suspending/hibernating (best-effort, may not be supported)
+            self._reset_boot_counter()
             
             decky.logger.info("Triggering suspend-then-hibernate via systemctl...")
             

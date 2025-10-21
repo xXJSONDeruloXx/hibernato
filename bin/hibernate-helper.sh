@@ -294,14 +294,14 @@ DefaultDependencies=no
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/steamos-boot-manager set-success
+ExecStart=/usr/bin/steamos-bootconf set-mode booted
 RemainAfterExit=yes
 
 [Install]
 WantedBy=hibernate.target hybrid-sleep.target suspend-then-hibernate.target
 EOF
         systemctl daemon-reload
-        systemctl enable steamos-hibernate-success.service 2>/dev/null || log "Note: steamos-boot-manager may not be available on this system"
+        systemctl enable steamos-hibernate-success.service 2>/dev/null || log "Note: steamos-bootconf may not be available on this system"
         
         log "Hibernation setup complete!"
         echo "SUCCESS:$UUID:$OFF"
