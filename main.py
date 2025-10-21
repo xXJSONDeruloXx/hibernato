@@ -245,8 +245,85 @@ class Plugin:
         try:
             decky.logger.info("Triggering hibernation...")
             
-            # Write directly to /sys/power/state from Python
-            # This avoids any subprocess permission issues
+            # CRITICAL: Set resume device and offset before hibernating
+            # The kernel needs to know where to write the hibernation image
+            try:
+                # Get device for /home
+                result = subprocess.run(
+                    ["findmnt", "-no", "SOURCE", "-T", "/home"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                
+                if result.returncode != 0:
+                    raise Exception("Could not find /home device")
+                
+                dev_path = result.stdout.strip()
+                decky.logger.info(f"Found /home device: {dev_path}")
+                
+                # Get major:minor numbers
+                stat_result = subprocess.run(
+                    ["stat", "-c", "%t:%T", dev_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                
+                if stat_result.returncode != 0:
+                    raise Exception("Could not stat device")
+                
+                major_hex, minor_hex = stat_result.stdout.strip().split(":")
+                major = int(major_hex, 16)
+                minor = int(minor_hex, 16)
+                resume_dev = f"{major}:{minor}"
+                
+                decky.logger.info(f"Device numbers: {resume_dev}")
+                
+                # Get swapfile offset
+                result = subprocess.run(
+                    ["filefrag", "-v", "/home/swapfile"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                
+                if result.returncode != 0:
+                    raise Exception("Could not get swapfile offset")
+                
+                # Parse offset from filefrag output
+                for line in result.stdout.splitlines():
+                    if line.strip().startswith("0:"):
+                        parts = line.split()
+                        if len(parts) >= 4:
+                            # Remove trailing ".." or "." from offset
+                            offset = parts[3].rstrip(".")
+                            decky.logger.info(f"Swapfile offset: {offset}")
+                            break
+                else:
+                    raise Exception("Could not parse swapfile offset")
+                
+                # Write resume parameters to /sys/power/
+                decky.logger.info(f"Setting resume device to {resume_dev}, offset {offset}")
+                
+                with open("/sys/power/resume", "w") as f:
+                    f.write(f"{resume_dev}\n")
+                    f.flush()
+                
+                with open("/sys/power/resume_offset", "w") as f:
+                    f.write(f"{offset}\n")
+                    f.flush()
+                
+                decky.logger.info("Resume parameters set successfully")
+                
+            except Exception as resume_error:
+                error_msg = f"Failed to set resume parameters: {resume_error}"
+                decky.logger.error(error_msg)
+                return {
+                    "success": False,
+                    "error": error_msg
+                }
+            
             # Sync filesystems first
             subprocess.run(["/usr/bin/sync"], check=False)
             
