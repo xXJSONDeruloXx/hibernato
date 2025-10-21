@@ -80,51 +80,111 @@ class Plugin:
                 return {
                     "success": False,
                     "error": stderr,
-                    "ready": False
+                    "ready": False,
+                    "status_code": "ERROR"
                 }
             
             status = stdout.strip()
             decky.logger.info(f"Hibernate status: {status}")
             
-            if status == "READY":
-                return {
+            status_map = {
+                "READY": {
                     "success": True,
                     "swapfile_exists": True,
                     "swap_active": True,
                     "resume_configured": True,
-                    "ready": True
-                }
-            elif status == "SWAP_INACTIVE":
-                return {
-                    "success": True,
-                    "swapfile_exists": True,
-                    "swap_active": False,
-                    "resume_configured": False,
-                    "ready": False
-                }
-            elif status == "RESUME_NOT_CONFIGURED":
-                return {
-                    "success": True,
-                    "swapfile_exists": True,
-                    "swap_active": True,
-                    "resume_configured": False,
-                    "ready": False
-                }
-            else:  # SWAPFILE_MISSING
-                return {
+                    "systemd_configured": True,
+                    "bluetooth_fix": True,
+                    "sleep_conf": True,
+                    "ready": True,
+                    "status_code": "READY",
+                    "message": "Hibernation fully configured and ready"
+                },
+                "SWAPFILE_MISSING": {
                     "success": True,
                     "swapfile_exists": False,
                     "swap_active": False,
                     "resume_configured": False,
-                    "ready": False
+                    "ready": False,
+                    "status_code": "SWAPFILE_MISSING",
+                    "message": "Swapfile not found - setup required"
+                },
+                "SWAPFILE_TOO_SMALL": {
+                    "success": True,
+                    "swapfile_exists": True,
+                    "swap_active": False,
+                    "resume_configured": False,
+                    "ready": False,
+                    "status_code": "SWAPFILE_TOO_SMALL",
+                    "message": "Swapfile too small (need 16GB+) - setup required"
+                },
+                "SWAP_INACTIVE": {
+                    "success": True,
+                    "swapfile_exists": True,
+                    "swap_active": False,
+                    "resume_configured": False,
+                    "ready": False,
+                    "status_code": "SWAP_INACTIVE",
+                    "message": "Swapfile exists but not activated - setup required"
+                },
+                "RESUME_NOT_CONFIGURED": {
+                    "success": True,
+                    "swapfile_exists": True,
+                    "swap_active": True,
+                    "resume_configured": False,
+                    "ready": False,
+                    "status_code": "RESUME_NOT_CONFIGURED",
+                    "message": "Resume parameters not configured - setup required"
+                },
+                "SYSTEMD_NOT_CONFIGURED": {
+                    "success": True,
+                    "swapfile_exists": True,
+                    "swap_active": True,
+                    "resume_configured": True,
+                    "systemd_configured": False,
+                    "ready": False,
+                    "status_code": "SYSTEMD_NOT_CONFIGURED",
+                    "message": "Systemd bypass not configured - setup required"
+                },
+                "BLUETOOTH_FIX_MISSING": {
+                    "success": True,
+                    "swapfile_exists": True,
+                    "swap_active": True,
+                    "resume_configured": True,
+                    "systemd_configured": True,
+                    "bluetooth_fix": False,
+                    "ready": False,
+                    "status_code": "BLUETOOTH_FIX_MISSING",
+                    "message": "Bluetooth fix service missing - setup required"
+                },
+                "SLEEP_CONF_NOT_CONFIGURED": {
+                    "success": True,
+                    "swapfile_exists": True,
+                    "swap_active": True,
+                    "resume_configured": True,
+                    "systemd_configured": True,
+                    "bluetooth_fix": True,
+                    "sleep_conf": False,
+                    "ready": False,
+                    "status_code": "SLEEP_CONF_NOT_CONFIGURED",
+                    "message": "Sleep configuration missing - setup required"
                 }
+            }
+            
+            return status_map.get(status, {
+                "success": True,
+                "ready": False,
+                "status_code": "UNKNOWN",
+                "message": f"Unknown status: {status}"
+            })
                 
         except Exception as e:
             decky.logger.error(f"Error in check_hibernate_status: {e}")
             return {
                 "success": False,
                 "error": str(e),
-                "ready": False
+                "ready": False,
+                "status_code": "ERROR"
             }
 
     async def prepare_hibernate(self) -> dict:

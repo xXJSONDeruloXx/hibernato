@@ -43,10 +43,19 @@ function Content() {
 
   const handlePrepare = async () => {
     setIsLoading(true);
+    toaster.toast({
+      title: "Setting Up Hibernation",
+      body: "This may take a few minutes. Creating swapfile and configuring system..."
+    });
+    
     try {
       const result = await prepareHibernate();
       
       if (result.success) {
+        toaster.toast({
+          title: "Setup Complete",
+          body: "Hibernation configured successfully! A reboot is recommended."
+        });
         await loadStatus();
       } else {
         toaster.toast({
@@ -67,6 +76,11 @@ function Content() {
 
   const handleHibernate = async () => {
     setIsLoading(true);
+    toaster.toast({
+      title: "Hibernating",
+      body: "System will hibernate in a moment..."
+    });
+    
     try {
       const result = await hibernateNow();
       
@@ -75,7 +89,9 @@ function Content() {
           title: "Hibernation Failed",
           body: result.error || "Unknown error occurred"
         });
+        setIsLoading(false);
       }
+      // If successful, system will hibernate and this won't execute
     } catch (error) {
       console.error("Hibernate failed:", error);
       toaster.toast({
@@ -88,6 +104,11 @@ function Content() {
 
   const handleSuspendThenHibernate = async () => {
     setIsLoading(true);
+    toaster.toast({
+      title: "Suspend-then-Hibernate",
+      body: "System will suspend now, then hibernate after 60 minutes of inactivity"
+    });
+    
     try {
       const result = await suspendThenHibernate();
       
@@ -96,7 +117,9 @@ function Content() {
           title: "Suspend-then-Hibernate Failed",
           body: result.error || "Unknown error occurred"
         });
+        setIsLoading(false);
       }
+      // If successful, system will suspend and this won't execute
     } catch (error) {
       console.error("Suspend-then-hibernate failed:", error);
       toaster.toast({
@@ -116,10 +139,24 @@ function Content() {
 
   const getStatusText = () => {
     if (!status) return "Checking...";
-    if (status.ready) return "Ready";
-    if (status.swapfile_exists && status.swap_active) return "Needs kernel config";
-    if (status.swapfile_exists) return "Needs swap activation";
+    if (status.message) return status.message;
+    if (status.ready) return "Ready for hibernation";
     return "Not configured";
+  };
+
+  const getDetailedStatus = () => {
+    if (!status || !status.success) return null;
+    
+    const checks = [
+      { label: "Swapfile (20GB)", ok: status.swapfile_exists },
+      { label: "Swap active", ok: status.swap_active },
+      { label: "Resume configured", ok: status.resume_configured },
+      { label: "Systemd bypass", ok: status.systemd_configured },
+      { label: "Bluetooth fix", ok: status.bluetooth_fix },
+      { label: "Sleep config", ok: status.sleep_conf }
+    ];
+    
+    return checks.filter(c => c.ok !== undefined);
   };
 
   return (
@@ -139,25 +176,35 @@ function Content() {
         </Field>
       </PanelSectionRow>
 
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={handleHibernate}
-          disabled={isLoading}
-        >
-          {isLoading ? "Processing..." : "Hibernate Now"}
-        </ButtonItem>
-      </PanelSectionRow>
+      {status?.ready && (
+        <>
+          <PanelSectionRow>
+            <div style={{ fontSize: "0.85em", color: "#aaa", marginBottom: "8px" }}>
+              <strong>Note:</strong> Power button works normally. Use these buttons for hibernation.
+            </div>
+          </PanelSectionRow>
+          
+          <PanelSectionRow>
+            <ButtonItem
+              layout="below"
+              onClick={handleHibernate}
+              disabled={isLoading}
+            >
+              {isLoading ? "Hibernating..." : "Hibernate Now"}
+            </ButtonItem>
+          </PanelSectionRow>
 
-      <PanelSectionRow>
-        <ButtonItem
-          layout="below"
-          onClick={handleSuspendThenHibernate}
-          disabled={isLoading}
-        >
-          {isLoading ? "Processing..." : "Suspend then Hibernate"}
-        </ButtonItem>
-      </PanelSectionRow>
+          <PanelSectionRow>
+            <ButtonItem
+              layout="below"
+              onClick={handleSuspendThenHibernate}
+              disabled={isLoading}
+            >
+              {isLoading ? "Suspending..." : "Suspend → Hibernate (60min)"}
+            </ButtonItem>
+          </PanelSectionRow>
+        </>
+      )}
 
       {!status?.ready && (
         <PanelSectionRow>
@@ -179,12 +226,22 @@ function Content() {
         </PanelSectionRow>
       )}
 
+      {getDetailedStatus() && (
+        <PanelSectionRow>
+          <div style={{ fontSize: "0.85em", marginTop: "8px" }}>
+            {getDetailedStatus()?.map((check, i) => (
+              <div key={i} style={{ color: check.ok ? "#4CAF50" : "#888" }}>
+                {check.ok ? "✓" : "○"} {check.label}
+              </div>
+            ))}
+          </div>
+        </PanelSectionRow>
+      )}
+      
       {status?.ready && (
         <PanelSectionRow>
-          <div style={{ fontSize: "0.85em", color: "#4CAF50", marginTop: "8px" }}>
-            ✓ Swapfile configured<br />
-            ✓ Swap active<br />
-            ✓ Resume parameters set
+          <div style={{ fontSize: "0.75em", color: "#666", marginTop: "12px", fontStyle: "italic" }}>
+            Hibernation saves RAM to disk and powers off. Resume is slower than sleep but preserves battery.
           </div>
         </PanelSectionRow>
       )}
