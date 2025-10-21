@@ -192,7 +192,15 @@ class Plugin:
         try:
             decky.logger.info("Starting hibernate preparation...")
             
-            returncode, stdout, stderr = self._run_helper("prepare", timeout=60)
+            # Increase timeout to 300 seconds (5 minutes) for swapfile creation
+            returncode, stdout, stderr = self._run_helper("prepare", timeout=300)
+            
+            # Log full output for debugging
+            decky.logger.info(f"Helper script returncode: {returncode}")
+            if stdout:
+                decky.logger.info(f"Helper script stdout: {stdout}")
+            if stderr:
+                decky.logger.error(f"Helper script stderr: {stderr}")
             
             if returncode != 0:
                 error_msg = stderr or "Unknown error during setup"
