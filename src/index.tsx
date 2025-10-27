@@ -265,21 +265,6 @@ function Content() {
     return "Not configured";
   };
 
-  const getDetailedStatus = () => {
-    if (!status || !status.success) return null;
-    
-    const checks = [
-      { label: "Swapfile", ok: status.swapfile_exists },
-      { label: "Swap active", ok: status.swap_active },
-      { label: "Resume configured", ok: status.resume_configured },
-      { label: "Systemd bypass", ok: status.systemd_configured },
-      { label: "Bluetooth fix", ok: status.bluetooth_fix },
-      { label: "Sleep config", ok: status.sleep_conf }
-    ];
-    
-    return checks.filter(c => c.ok !== undefined);
-  };
-
   return (
     <PanelSection>
       <PanelSectionRow>
@@ -408,18 +393,6 @@ function Content() {
         <PanelSectionRow>
           <div style={{ color: "#F44336", fontSize: "0.9em" }}>
             Error: {status.error}
-          </div>
-        </PanelSectionRow>
-      )}
-
-      {getDetailedStatus() && (
-        <PanelSectionRow>
-          <div style={{ fontSize: "0.85em", marginTop: "8px" }}>
-            {getDetailedStatus()?.map((check, i) => (
-              <div key={i} style={{ color: check.ok ? "#4CAF50" : "#888" }}>
-                {check.ok ? "✓" : "○"} {check.label}
-              </div>
-            ))}
           </div>
         </PanelSectionRow>
       )}
