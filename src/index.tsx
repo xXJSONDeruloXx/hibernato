@@ -3,7 +3,10 @@ import {
   PanelSection,
   PanelSectionRow,
   staticClasses,
-  Field
+  Field,
+  ToggleField,
+  Dropdown,
+  SingleDropdownOption
 } from "@decky/ui";
 import {
   callable,
@@ -18,10 +21,16 @@ const prepareHibernate = callable<[], any>("prepare_hibernate");
 const hibernateNow = callable<[], any>("hibernate_now");
 const suspendThenHibernate = callable<[], any>("suspend_then_hibernate");
 const cleanupHibernate = callable<[], any>("cleanup_hibernate");
+const setPowerButtonOverride = callable<[boolean, string], any>("set_power_button_override");
+const getHibernateDelay = callable<[], any>("get_hibernate_delay");
+const setHibernateDelay = callable<[number], any>("set_hibernate_delay");
 
 function Content() {
   const [status, setStatus] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [powerButtonOverride, setPowerButtonOverrideState] = useState(false);
+  const [overrideMode, setOverrideMode] = useState<"hibernate" | "suspend-then-hibernate">("hibernate");
+  const [hibernateDelayMinutes, setHibernateDelayMinutes] = useState<number>(60);
 
   useEffect(() => {
     loadStatus();
@@ -42,6 +51,22 @@ function Content() {
     try {
       const result = await checkHibernateStatus();
       setStatus(result);
+      
+      // Update power button override state from status
+      if (result.power_button_override !== undefined) {
+        setPowerButtonOverrideState(result.power_button_override);
+      }
+      if (result.override_mode) {
+        setOverrideMode(result.override_mode);
+      }
+      
+      // Load hibernate delay setting
+      if (result.ready) {
+        const delayResult = await getHibernateDelay();
+        if (delayResult.success && delayResult.delay_minutes) {
+          setHibernateDelayMinutes(delayResult.delay_minutes);
+        }
+      }
     } catch (error) {
       console.error("Failed to check hibernate status:", error);
       toaster.toast({
@@ -115,7 +140,7 @@ function Content() {
     setIsLoading(true);
     toaster.toast({
       title: "Suspend-then-Hibernate",
-      body: "System will suspend now, then hibernate after 60 minutes of inactivity"
+      body: `System will suspend now, then hibernate after ${formatDelayLabel(hibernateDelayMinutes)} of inactivity`
     });
     
     try {
@@ -171,6 +196,107 @@ function Content() {
     }
   };
 
+  const handlePowerButtonOverrideToggle = async (enabled: boolean) => {
+    setIsLoading(true);
+    
+    try {
+      const result = await setPowerButtonOverride(enabled, overrideMode);
+      
+      if (result.success) {
+        setPowerButtonOverrideState(enabled);
+        toaster.toast({
+          title: enabled ? "Power Button Override Enabled" : "Power Button Override Disabled",
+          body: enabled 
+            ? `Power button will now trigger ${overrideMode === "hibernate" ? "immediate hibernation" : "suspend-then-hibernate"}`
+            : "Power button restored to normal sleep behavior"
+        });
+        await loadStatus();
+      } else {
+        toaster.toast({
+          title: "Override Failed",
+          body: result.error || "Unknown error occurred"
+        });
+      }
+    } catch (error) {
+      console.error("Power button override failed:", error);
+      toaster.toast({
+        title: "Override Error",
+        body: String(error)
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOverrideModeChange = async (mode: "hibernate" | "suspend-then-hibernate") => {
+    setOverrideMode(mode);
+    
+    // If override is currently enabled, apply the new mode
+    if (powerButtonOverride) {
+      setIsLoading(true);
+      
+      try {
+        const result = await setPowerButtonOverride(true, mode);
+        
+        if (result.success) {
+          toaster.toast({
+            title: "Override Mode Updated",
+            body: `Power button will now trigger ${mode === "hibernate" ? "immediate hibernation" : "suspend-then-hibernate"}`
+          });
+          await loadStatus();
+        } else {
+          toaster.toast({
+            title: "Mode Change Failed",
+            body: result.error || "Unknown error occurred"
+          });
+        }
+      } catch (error) {
+        console.error("Mode change failed:", error);
+        toaster.toast({
+          title: "Mode Change Error",
+          body: String(error)
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleDelayChange = async (delayMinutes: number) => {
+    setHibernateDelayMinutes(delayMinutes);
+    
+    try {
+      const result = await setHibernateDelay(delayMinutes);
+      
+      if (result.success) {
+        toaster.toast({
+          title: "Delay Updated",
+          body: `Suspend-then-hibernate delay set to ${formatDelayLabel(delayMinutes)}`
+        });
+      } else {
+        toaster.toast({
+          title: "Delay Change Failed",
+          body: result.error || "Unknown error occurred"
+        });
+      }
+    } catch (error) {
+      console.error("Delay change failed:", error);
+      toaster.toast({
+        title: "Delay Change Error",
+        body: String(error)
+      });
+    }
+  };
+
+  const formatDelayLabel = (minutes: number): string => {
+    if (minutes < 60) {
+      return `${minutes} min`;
+    } else {
+      const hours = minutes / 60;
+      return `${hours} hr${hours !== 1 ? 's' : ''}`;
+    }
+  };
+
   const getStatusColor = () => {
     if (!status) return "#888";
     if (status.ready) return "#4CAF50";
@@ -185,23 +311,8 @@ function Content() {
     return "Not configured";
   };
 
-  const getDetailedStatus = () => {
-    if (!status || !status.success) return null;
-    
-    const checks = [
-      { label: "Swapfile (20GB)", ok: status.swapfile_exists },
-      { label: "Swap active", ok: status.swap_active },
-      { label: "Resume configured", ok: status.resume_configured },
-      { label: "Systemd bypass", ok: status.systemd_configured },
-      { label: "Bluetooth fix", ok: status.bluetooth_fix },
-      { label: "Sleep config", ok: status.sleep_conf }
-    ];
-    
-    return checks.filter(c => c.ok !== undefined);
-  };
-
   return (
-    <PanelSection title="Hibernation Control">
+    <PanelSection>
       <PanelSectionRow>
         <Field
           label="Status"
@@ -220,8 +331,18 @@ function Content() {
       {status?.ready && (
         <>
           <PanelSectionRow>
-            <div style={{ fontSize: "0.85em", color: "#aaa", marginBottom: "8px" }}>
-              <strong>Note:</strong> Power button works normally. Use these buttons for hibernation.
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: "bold",
+                marginTop: "8px",
+                marginBottom: "6px",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
+                paddingBottom: "3px",
+                color: "white"
+              }}
+            >
+              Manual Buttons
             </div>
           </PanelSectionRow>
           
@@ -241,8 +362,104 @@ function Content() {
               onClick={handleSuspendThenHibernate}
               disabled={isLoading}
             >
-              {isLoading ? "Suspending..." : "Suspend → Hibernate (60min)"}
+              {isLoading ? "Suspending..." : `Suspend → Hibernate (${formatDelayLabel(hibernateDelayMinutes)})`}
             </ButtonItem>
+          </PanelSectionRow>
+
+          <PanelSectionRow>
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: "bold",
+                marginTop: "8px",
+                marginBottom: "6px",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
+                paddingBottom: "3px",
+                color: "white"
+              }}
+            >
+              Power Button
+            </div>
+          </PanelSectionRow>
+
+          <PanelSectionRow>
+            <ToggleField
+              label="Override Power Button"
+              description={powerButtonOverride 
+                ? `Power button will ${overrideMode === "hibernate" ? "hibernate immediately" : "suspend then hibernate"}`
+                : "Power button works normally (suspend only)"
+              }
+              checked={powerButtonOverride}
+              onChange={handlePowerButtonOverrideToggle}
+              disabled={isLoading}
+            />
+          </PanelSectionRow>
+
+          {powerButtonOverride && (
+            <PanelSectionRow>
+              <Field 
+                label="Power Button Behavior"
+                childrenLayout="below"
+                childrenContainerWidth="max"
+              >
+                <Dropdown
+                  rgOptions={[
+                    {
+                      data: "hibernate" as const,
+                      label: "Hibernate Now"
+                    },
+                    {
+                      data: "suspend-then-hibernate" as const,
+                      label: `Suspend → Hibernate (${formatDelayLabel(hibernateDelayMinutes)})`
+                    }
+                  ]}
+                  selectedOption={overrideMode}
+                  onChange={(option: SingleDropdownOption) => handleOverrideModeChange(option.data as "hibernate" | "suspend-then-hibernate")}
+                  disabled={isLoading}
+                />
+              </Field>
+            </PanelSectionRow>
+          )}
+          
+          <PanelSectionRow>
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: "bold",
+                marginTop: "8px",
+                marginBottom: "6px",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
+                paddingBottom: "3px",
+                color: "white"
+              }}
+            >
+              Suspend-Then-Hibernate Settings
+            </div>
+          </PanelSectionRow>
+
+          <PanelSectionRow>
+            <Field 
+              label="Delay Before Hibernation"
+              childrenLayout="below"
+              childrenContainerWidth="max"
+            >
+              <Dropdown
+                rgOptions={[
+                  { data: 1, label: "1 minute" },
+                  { data: 5, label: "5 minutes" },
+                  { data: 10, label: "10 minutes" },
+                  { data: 20, label: "20 minutes" },
+                  { data: 30, label: "30 minutes" },
+                  { data: 60, label: "1 hour" },
+                  { data: 120, label: "2 hours" },
+                  { data: 180, label: "3 hours" },
+                  { data: 300, label: "5 hours" }
+                ]}
+                selectedOption={hibernateDelayMinutes}
+                onChange={(option: SingleDropdownOption) => handleDelayChange(option.data as number)}
+                disabled={isLoading}
+              />
+            </Field>
           </PanelSectionRow>
         </>
       )}
@@ -263,18 +480,6 @@ function Content() {
         <PanelSectionRow>
           <div style={{ color: "#F44336", fontSize: "0.9em" }}>
             Error: {status.error}
-          </div>
-        </PanelSectionRow>
-      )}
-
-      {getDetailedStatus() && (
-        <PanelSectionRow>
-          <div style={{ fontSize: "0.85em", marginTop: "8px" }}>
-            {getDetailedStatus()?.map((check, i) => (
-              <div key={i} style={{ color: check.ok ? "#4CAF50" : "#888" }}>
-                {check.ok ? "✓" : "○"} {check.label}
-              </div>
-            ))}
           </div>
         </PanelSectionRow>
       )}
@@ -308,6 +513,7 @@ export default definePlugin(() => {
   return {
     name: "Hibernado",
     titleView: <div className={staticClasses.Title}>Hibernado</div>,
+    alwaysRender: true,
     content: <Content />,
     icon: <FaTornado />,
     onDismount() {

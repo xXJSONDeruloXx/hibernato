@@ -63,11 +63,12 @@ class Plugin:
         else:
             decky.logger.error(f"Helper script not found at {self.helper_script}")
         
-    def _run_helper(self, action: str, timeout: int = 60) -> tuple[int, str, str]:
-        """Run the helper script with the given action"""
+    def _run_helper(self, action: str, *args, timeout: int = 60) -> tuple[int, str, str]:
+        """Run the helper script with the given action and optional arguments"""
         try:
+            cmd = [str(self.helper_script), action] + list(args)
             result = subprocess.run(
-                [str(self.helper_script), action],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -144,11 +145,31 @@ class Plugin:
                     "success": False,
                     "error": stderr,
                     "ready": False,
-                    "status_code": "ERROR"
+                    "status_code": "ERROR",
+                    "power_button_override": False,
+                    "override_mode": "hibernate"
                 }
             
             status = stdout.strip()
             decky.logger.info(f"Hibernate status: {status}")
+            
+            # Check power button override status
+            power_button_override = False
+            override_mode = "hibernate"
+            
+            try:
+                # Check if the symlink exists
+                symlink_path = "/etc/systemd/system/systemd-suspend.service"
+                if os.path.islink(symlink_path):
+                    target = os.readlink(symlink_path)
+                    if "suspend-then-hibernate" in target:
+                        power_button_override = True
+                        override_mode = "suspend-then-hibernate"
+                    elif "hibernate" in target:
+                        power_button_override = True
+                        override_mode = "hibernate"
+            except Exception as e:
+                decky.logger.warning(f"Could not check power button override status: {e}")
             
             status_map = {
                 "READY": {
@@ -161,7 +182,9 @@ class Plugin:
                     "sleep_conf": True,
                     "ready": True,
                     "status_code": "READY",
-                    "message": "Hibernation fully configured and ready"
+                    "message": "Hibernation fully configured and ready",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "SWAPFILE_MISSING": {
                     "success": True,
@@ -170,7 +193,9 @@ class Plugin:
                     "resume_configured": False,
                     "ready": False,
                     "status_code": "SWAPFILE_MISSING",
-                    "message": "Swapfile not found - setup required"
+                    "message": "Swapfile not found - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "SWAPFILE_TOO_SMALL": {
                     "success": True,
@@ -179,7 +204,9 @@ class Plugin:
                     "resume_configured": False,
                     "ready": False,
                     "status_code": "SWAPFILE_TOO_SMALL",
-                    "message": "Swapfile too small (need 16GB+) - setup required"
+                    "message": "Swapfile too small (need 16GB+) - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "SWAP_INACTIVE": {
                     "success": True,
@@ -188,7 +215,9 @@ class Plugin:
                     "resume_configured": False,
                     "ready": False,
                     "status_code": "SWAP_INACTIVE",
-                    "message": "Swapfile exists but not activated - setup required"
+                    "message": "Swapfile exists but not activated - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "RESUME_NOT_CONFIGURED": {
                     "success": True,
@@ -197,7 +226,9 @@ class Plugin:
                     "resume_configured": False,
                     "ready": False,
                     "status_code": "RESUME_NOT_CONFIGURED",
-                    "message": "Resume parameters not configured - setup required"
+                    "message": "Resume parameters not configured - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "SYSTEMD_NOT_CONFIGURED": {
                     "success": True,
@@ -207,7 +238,9 @@ class Plugin:
                     "systemd_configured": False,
                     "ready": False,
                     "status_code": "SYSTEMD_NOT_CONFIGURED",
-                    "message": "Systemd bypass not configured - setup required"
+                    "message": "Systemd bypass not configured - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "BLUETOOTH_FIX_MISSING": {
                     "success": True,
@@ -218,7 +251,9 @@ class Plugin:
                     "bluetooth_fix": False,
                     "ready": False,
                     "status_code": "BLUETOOTH_FIX_MISSING",
-                    "message": "Bluetooth fix service missing - setup required"
+                    "message": "Bluetooth fix service missing - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "SLEEP_CONF_NOT_CONFIGURED": {
                     "success": True,
@@ -230,7 +265,9 @@ class Plugin:
                     "sleep_conf": False,
                     "ready": False,
                     "status_code": "SLEEP_CONF_NOT_CONFIGURED",
-                    "message": "Sleep configuration missing - setup required"
+                    "message": "Sleep configuration missing - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 }
             }
             
@@ -238,7 +275,9 @@ class Plugin:
                 "success": True,
                 "ready": False,
                 "status_code": "UNKNOWN",
-                "message": f"Unknown status: {status}"
+                "message": f"Unknown status: {status}",
+                "power_button_override": power_button_override,
+                "override_mode": override_mode
             })
                 
         except Exception as e:
@@ -247,7 +286,9 @@ class Plugin:
                 "success": False,
                 "error": str(e),
                 "ready": False,
-                "status_code": "ERROR"
+                "status_code": "ERROR",
+                "power_button_override": False,
+                "override_mode": "hibernate"
             }
 
     async def prepare_hibernate(self) -> dict:
@@ -495,3 +536,129 @@ class Plugin:
                 "success": False,
                 "error": error_msg
             }
+
+    async def set_power_button_override(self, enabled: bool, mode: str) -> dict:
+        """Enable or disable power button override for hibernation
+        
+        Args:
+            enabled: True to enable override, False to disable
+            mode: "hibernate" or "suspend-then-hibernate"
+        """
+        try:
+            decky.logger.info(f"Setting power button override: enabled={enabled}, mode={mode}")
+            
+            # Check if hibernation is ready
+            status = await self.check_hibernate_status()
+            if not status.get("ready", False):
+                return {
+                    "success": False,
+                    "error": "Hibernation must be set up before enabling power button override"
+                }
+            
+            # Build arguments for helper script
+            if enabled:
+                returncode, stdout, stderr = self._run_helper(
+                    "set-power-button", "enable", mode,
+                    timeout=10
+                )
+            else:
+                returncode, stdout, stderr = self._run_helper(
+                    "set-power-button", "disable",
+                    timeout=10
+                )
+            
+            if returncode != 0:
+                error_msg = stderr or "Unknown error setting power button override"
+                decky.logger.error(f"Power button override failed: {error_msg}")
+                return {
+                    "success": False,
+                    "error": error_msg
+                }
+            
+            decky.logger.info(f"Power button override {'enabled' if enabled else 'disabled'} successfully")
+            return {
+                "success": True,
+                "message": f"Power button override {'enabled' if enabled else 'disabled'}"
+            }
+            
+        except Exception as e:
+            error_msg = str(e)
+            decky.logger.error(f"Error in set_power_button_override: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg
+            }
+
+    async def get_hibernate_delay(self) -> dict:
+        """Get the current hibernate delay setting in minutes
+        
+        Returns:
+            dict with success, delay_minutes
+        """
+        try:
+            decky.logger.info("Getting hibernate delay setting...")
+            
+            returncode, stdout, stderr = self._run_helper("get-delay", timeout=5)
+            
+            if returncode != 0:
+                decky.logger.warning(f"Could not get delay: {stderr}")
+                # Default to 60 minutes if not found
+                return {
+                    "success": True,
+                    "delay_minutes": 60
+                }
+            
+            # Parse the output (should be just a number)
+            delay_minutes = int(stdout.strip())
+            decky.logger.info(f"Current hibernate delay: {delay_minutes} minutes")
+            
+            return {
+                "success": True,
+                "delay_minutes": delay_minutes
+            }
+            
+        except Exception as e:
+            error_msg = str(e)
+            decky.logger.error(f"Error getting hibernate delay: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg,
+                "delay_minutes": 60  # Default fallback
+            }
+
+    async def set_hibernate_delay(self, delay_minutes: int) -> dict:
+        """Set the hibernate delay for suspend-then-hibernate
+        
+        Args:
+            delay_minutes: Delay in minutes before hibernating from suspend
+        """
+        try:
+            decky.logger.info(f"Setting hibernate delay to {delay_minutes} minutes...")
+            
+            returncode, stdout, stderr = self._run_helper(
+                "set-delay", str(delay_minutes),
+                timeout=10
+            )
+            
+            if returncode != 0:
+                error_msg = stderr or "Unknown error setting hibernate delay"
+                decky.logger.error(f"Set delay failed: {error_msg}")
+                return {
+                    "success": False,
+                    "error": error_msg
+                }
+            
+            decky.logger.info(f"Hibernate delay set to {delay_minutes} minutes successfully")
+            return {
+                "success": True,
+                "message": f"Hibernate delay set to {delay_minutes} minutes"
+            }
+            
+        except Exception as e:
+            error_msg = str(e)
+            decky.logger.error(f"Error setting hibernate delay: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg
+            }
+
