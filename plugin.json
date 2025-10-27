@@ -6,7 +6,7 @@
   "publish": {
     "tags": ["power-management", "hibernate", "steam-deck", "root"],
     "description": "Enables hibernation on Steam Deck without unlocking the filesystem. Safely configure swapfile, GRUB, systemd, and hardware fixes for zero-battery-drain suspend. Includes Bluetooth fix and suspend-then-hibernate support.",
-    "image": "https://opengraph.githubassets.com/1/SteamDeckHomebrew/PluginLoader"
+    "image": "https://raw.githubusercontent.com/xXJSONDeruloXx/hibernado/refs/heads/main/assets/thumbnail.jpeg"
   }
 }
 
