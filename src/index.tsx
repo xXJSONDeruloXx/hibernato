@@ -314,7 +314,11 @@ function Content() {
 
           {powerButtonOverride && (
             <PanelSectionRow>
-              <Field label="Power Button Behavior">
+              <Field 
+                label="Power Button Behavior"
+                childrenLayout="below"
+                childrenContainerWidth="max"
+              >
                 <Dropdown
                   rgOptions={[
                     {
