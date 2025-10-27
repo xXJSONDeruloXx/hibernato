@@ -290,10 +290,10 @@ function Content() {
 
   const formatDelayLabel = (minutes: number): string => {
     if (minutes < 60) {
-      return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+      return `${minutes} min`;
     } else {
       const hours = minutes / 60;
-      return `${hours} hour${hours !== 1 ? 's' : ''}`;
+      return `${hours} hr${hours !== 1 ? 's' : ''}`;
     }
   };
 
@@ -330,6 +330,42 @@ function Content() {
 
       {status?.ready && (
         <>
+          <PanelSectionRow>
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: "bold",
+                marginTop: "8px",
+                marginBottom: "6px",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
+                paddingBottom: "3px",
+                color: "white"
+              }}
+            >
+              Manual Buttons
+            </div>
+          </PanelSectionRow>
+          
+          <PanelSectionRow>
+            <ButtonItem
+              layout="below"
+              onClick={handleHibernate}
+              disabled={isLoading}
+            >
+              {isLoading ? "Hibernating..." : "Hibernate Now"}
+            </ButtonItem>
+          </PanelSectionRow>
+
+          <PanelSectionRow>
+            <ButtonItem
+              layout="below"
+              onClick={handleSuspendThenHibernate}
+              disabled={isLoading}
+            >
+              {isLoading ? "Suspending..." : `Suspend → Hibernate (${formatDelayLabel(hibernateDelayMinutes)})`}
+            </ButtonItem>
+          </PanelSectionRow>
+
           <PanelSectionRow>
             <div
               style={{
@@ -425,42 +461,6 @@ function Content() {
               />
             </Field>
           </PanelSectionRow>
-          
-          <PanelSectionRow>
-            <div
-              style={{
-                fontSize: "14px",
-                fontWeight: "bold",
-                marginTop: "8px",
-                marginBottom: "6px",
-                borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
-                paddingBottom: "3px",
-                color: "white"
-              }}
-            >
-              Manual Buttons
-            </div>
-          </PanelSectionRow>
-          
-          <PanelSectionRow>
-            <ButtonItem
-              layout="below"
-              onClick={handleHibernate}
-              disabled={isLoading}
-            >
-              {isLoading ? "Hibernating..." : "Hibernate Now"}
-            </ButtonItem>
-          </PanelSectionRow>
-
-          <PanelSectionRow>
-            <ButtonItem
-              layout="below"
-              onClick={handleSuspendThenHibernate}
-              disabled={isLoading}
-            >
-              {isLoading ? "Suspending..." : `Suspend → Hibernate (${formatDelayLabel(hibernateDelayMinutes)})`}
-            </ButtonItem>
-          </PanelSectionRow>
         </>
       )}
 
@@ -513,6 +513,7 @@ export default definePlugin(() => {
   return {
     name: "Hibernado",
     titleView: <div className={staticClasses.Title}>Hibernado</div>,
+    alwaysRender: true,
     content: <Content />,
     icon: <FaTornado />,
     onDismount() {
