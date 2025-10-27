@@ -527,9 +527,56 @@ EOF
         log "Cleanup complete. All hibernation configuration has been removed."
         log "NOTE: A reboot is recommended to ensure all kernel parameters are reset."
         ;;
+    
+    get-delay)
+        # Get current hibernate delay setting from sleep.conf
+        if [ -f /etc/systemd/sleep.conf ]; then
+            # Extract the delay value (strip 'min' suffix and get the number)
+            DELAY=$(grep "^HibernateDelaySec=" /etc/systemd/sleep.conf | cut -d'=' -f2 | sed 's/min$//')
+            if [ -n "$DELAY" ]; then
+                echo "$DELAY"
+                exit 0
+            fi
+        fi
+        # Default to 60 if not found
+        echo "60"
+        exit 0
+        ;;
+    
+    set-delay)
+        # Set hibernate delay: $2 = delay in minutes
+        if [ -z "$2" ]; then
+            log "ERROR: Delay minutes not specified"
+            exit 1
+        fi
+        
+        DELAY_MIN="$2"
+        
+        if ! [[ "$DELAY_MIN" =~ ^[0-9]+$ ]]; then
+            log "ERROR: Invalid delay value (must be a number)"
+            exit 1
+        fi
+        
+        log "Setting hibernate delay to $DELAY_MIN minutes..."
+        
+        # Update sleep.conf with new delay
+        cat > /etc/systemd/sleep.conf << EOF
+# hibernado plugin - suspend-then-hibernate configuration
+[Sleep]
+AllowSuspend=yes
+AllowHibernation=yes
+AllowSuspendThenHibernate=yes
+HibernateDelaySec=${DELAY_MIN}min
+EOF
+        
+        systemctl daemon-reload
+        log "Hibernate delay set to $DELAY_MIN minutes"
+        exit 0
+        ;;
         
     *)
-        echo "Usage: $0 {status|prepare|hibernate|suspend-then-hibernate|set-power-button|cleanup}"
+        echo "Usage: $0 {status|prepare|hibernate|suspend-then-hibernate|set-power-button|get-delay|set-delay|cleanup}"
         exit 1
         ;;
 esac
+

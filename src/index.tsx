@@ -22,12 +22,15 @@ const hibernateNow = callable<[], any>("hibernate_now");
 const suspendThenHibernate = callable<[], any>("suspend_then_hibernate");
 const cleanupHibernate = callable<[], any>("cleanup_hibernate");
 const setPowerButtonOverride = callable<[boolean, string], any>("set_power_button_override");
+const getHibernateDelay = callable<[], any>("get_hibernate_delay");
+const setHibernateDelay = callable<[number], any>("set_hibernate_delay");
 
 function Content() {
   const [status, setStatus] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [powerButtonOverride, setPowerButtonOverrideState] = useState(false);
   const [overrideMode, setOverrideMode] = useState<"hibernate" | "suspend-then-hibernate">("hibernate");
+  const [hibernateDelayMinutes, setHibernateDelayMinutes] = useState<number>(60);
 
   useEffect(() => {
     loadStatus();
@@ -55,6 +58,14 @@ function Content() {
       }
       if (result.override_mode) {
         setOverrideMode(result.override_mode);
+      }
+      
+      // Load hibernate delay setting
+      if (result.ready) {
+        const delayResult = await getHibernateDelay();
+        if (delayResult.success && delayResult.delay_minutes) {
+          setHibernateDelayMinutes(delayResult.delay_minutes);
+        }
       }
     } catch (error) {
       console.error("Failed to check hibernate status:", error);
@@ -129,7 +140,7 @@ function Content() {
     setIsLoading(true);
     toaster.toast({
       title: "Suspend-then-Hibernate",
-      body: "System will suspend now, then hibernate after 60 minutes of inactivity"
+      body: `System will suspend now, then hibernate after ${formatDelayLabel(hibernateDelayMinutes)} of inactivity`
     });
     
     try {
@@ -251,6 +262,41 @@ function Content() {
     }
   };
 
+  const handleDelayChange = async (delayMinutes: number) => {
+    setHibernateDelayMinutes(delayMinutes);
+    
+    try {
+      const result = await setHibernateDelay(delayMinutes);
+      
+      if (result.success) {
+        toaster.toast({
+          title: "Delay Updated",
+          body: `Suspend-then-hibernate delay set to ${formatDelayLabel(delayMinutes)}`
+        });
+      } else {
+        toaster.toast({
+          title: "Delay Change Failed",
+          body: result.error || "Unknown error occurred"
+        });
+      }
+    } catch (error) {
+      console.error("Delay change failed:", error);
+      toaster.toast({
+        title: "Delay Change Error",
+        body: String(error)
+      });
+    }
+  };
+
+  const formatDelayLabel = (minutes: number): string => {
+    if (minutes < 60) {
+      return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
+    } else {
+      const hours = minutes / 60;
+      return `${hours} hour${hours !== 1 ? 's' : ''}`;
+    }
+  };
+
   const getStatusColor = () => {
     if (!status) return "#888";
     if (status.ready) return "#4CAF50";
@@ -328,7 +374,7 @@ function Content() {
                     },
                     {
                       data: "suspend-then-hibernate" as const,
-                      label: "Suspend → Hibernate (60min)"
+                      label: `Suspend → Hibernate (${formatDelayLabel(hibernateDelayMinutes)})`
                     }
                   ]}
                   selectedOption={overrideMode}
@@ -338,6 +384,47 @@ function Content() {
               </Field>
             </PanelSectionRow>
           )}
+          
+          <PanelSectionRow>
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: "bold",
+                marginTop: "8px",
+                marginBottom: "6px",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
+                paddingBottom: "3px",
+                color: "white"
+              }}
+            >
+              Suspend-Then-Hibernate Settings
+            </div>
+          </PanelSectionRow>
+
+          <PanelSectionRow>
+            <Field 
+              label="Delay Before Hibernation"
+              childrenLayout="below"
+              childrenContainerWidth="max"
+            >
+              <Dropdown
+                rgOptions={[
+                  { data: 1, label: "1 minute" },
+                  { data: 5, label: "5 minutes" },
+                  { data: 10, label: "10 minutes" },
+                  { data: 20, label: "20 minutes" },
+                  { data: 30, label: "30 minutes" },
+                  { data: 60, label: "1 hour" },
+                  { data: 120, label: "2 hours" },
+                  { data: 180, label: "3 hours" },
+                  { data: 300, label: "5 hours" }
+                ]}
+                selectedOption={hibernateDelayMinutes}
+                onChange={(option: SingleDropdownOption) => handleDelayChange(option.data as number)}
+                disabled={isLoading}
+              />
+            </Field>
+          </PanelSectionRow>
           
           <PanelSectionRow>
             <div
@@ -371,7 +458,7 @@ function Content() {
               onClick={handleSuspendThenHibernate}
               disabled={isLoading}
             >
-              {isLoading ? "Suspending..." : "Suspend → Hibernate (60min)"}
+              {isLoading ? "Suspending..." : `Suspend → Hibernate (${formatDelayLabel(hibernateDelayMinutes)})`}
             </ButtonItem>
           </PanelSectionRow>
         </>

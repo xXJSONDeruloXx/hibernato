@@ -588,3 +588,77 @@ class Plugin:
                 "success": False,
                 "error": error_msg
             }
+
+    async def get_hibernate_delay(self) -> dict:
+        """Get the current hibernate delay setting in minutes
+        
+        Returns:
+            dict with success, delay_minutes
+        """
+        try:
+            decky.logger.info("Getting hibernate delay setting...")
+            
+            returncode, stdout, stderr = self._run_helper("get-delay", timeout=5)
+            
+            if returncode != 0:
+                decky.logger.warning(f"Could not get delay: {stderr}")
+                # Default to 60 minutes if not found
+                return {
+                    "success": True,
+                    "delay_minutes": 60
+                }
+            
+            # Parse the output (should be just a number)
+            delay_minutes = int(stdout.strip())
+            decky.logger.info(f"Current hibernate delay: {delay_minutes} minutes")
+            
+            return {
+                "success": True,
+                "delay_minutes": delay_minutes
+            }
+            
+        except Exception as e:
+            error_msg = str(e)
+            decky.logger.error(f"Error getting hibernate delay: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg,
+                "delay_minutes": 60  # Default fallback
+            }
+
+    async def set_hibernate_delay(self, delay_minutes: int) -> dict:
+        """Set the hibernate delay for suspend-then-hibernate
+        
+        Args:
+            delay_minutes: Delay in minutes before hibernating from suspend
+        """
+        try:
+            decky.logger.info(f"Setting hibernate delay to {delay_minutes} minutes...")
+            
+            returncode, stdout, stderr = self._run_helper(
+                "set-delay", str(delay_minutes),
+                timeout=10
+            )
+            
+            if returncode != 0:
+                error_msg = stderr or "Unknown error setting hibernate delay"
+                decky.logger.error(f"Set delay failed: {error_msg}")
+                return {
+                    "success": False,
+                    "error": error_msg
+                }
+            
+            decky.logger.info(f"Hibernate delay set to {delay_minutes} minutes successfully")
+            return {
+                "success": True,
+                "message": f"Hibernate delay set to {delay_minutes} minutes"
+            }
+            
+        except Exception as e:
+            error_msg = str(e)
+            decky.logger.error(f"Error setting hibernate delay: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg
+            }
+
