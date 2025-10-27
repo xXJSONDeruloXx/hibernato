@@ -318,10 +318,72 @@ EOF
         systemctl suspend-then-hibernate
         ;;
         
+    set-power-button)
+        # Usage: set-power-button enable hibernate|suspend-then-hibernate
+        #        set-power-button disable
+        POWER_ACTION="${2:-}"
+        MODE="${3:-}"
+        
+        SYMLINK_PATH="/etc/systemd/system/systemd-suspend.service"
+        
+        if [ "$POWER_ACTION" = "enable" ]; then
+            if [ -z "$MODE" ]; then
+                log "ERROR: Mode not specified (hibernate or suspend-then-hibernate)"
+                echo "ERROR: Mode required for enable" >&2
+                exit 1
+            fi
+            
+            # Remove existing symlink if present
+            if [ -L "$SYMLINK_PATH" ] || [ -e "$SYMLINK_PATH" ]; then
+                log "Removing existing systemd-suspend.service..."
+                rm -f "$SYMLINK_PATH"
+            fi
+            
+            # Create the appropriate symlink based on mode
+            if [ "$MODE" = "hibernate" ]; then
+                log "Creating symlink for immediate hibernate on power button..."
+                ln -s /usr/lib/systemd/system/systemd-hibernate.service "$SYMLINK_PATH"
+                log "Power button will now trigger immediate hibernation"
+            elif [ "$MODE" = "suspend-then-hibernate" ]; then
+                log "Creating symlink for suspend-then-hibernate on power button..."
+                ln -s /usr/lib/systemd/system/systemd-suspend-then-hibernate.service "$SYMLINK_PATH"
+                log "Power button will now trigger suspend-then-hibernate"
+            else
+                log "ERROR: Invalid mode '$MODE' (must be hibernate or suspend-then-hibernate)"
+                echo "ERROR: Invalid mode" >&2
+                exit 1
+            fi
+            
+            systemctl daemon-reload
+            log "Power button override enabled successfully"
+            
+        elif [ "$POWER_ACTION" = "disable" ]; then
+            if [ -L "$SYMLINK_PATH" ] || [ -e "$SYMLINK_PATH" ]; then
+                log "Removing power button override symlink..."
+                rm -f "$SYMLINK_PATH"
+                systemctl daemon-reload
+                log "Power button restored to normal suspend behavior"
+            else
+                log "No power button override was active"
+            fi
+        else
+            log "ERROR: Invalid action '$POWER_ACTION' (must be enable or disable)"
+            echo "ERROR: Invalid action" >&2
+            exit 1
+        fi
+        ;;
+        
     cleanup)
         SWAP=/home/swapfile
         
         log "Cleaning up hibernation configuration..."
+        
+        # Remove power button override if present
+        SYMLINK_PATH="/etc/systemd/system/systemd-suspend.service"
+        if [ -L "$SYMLINK_PATH" ] || [ -e "$SYMLINK_PATH" ]; then
+            log "Removing power button override..."
+            rm -f "$SYMLINK_PATH"
+        fi
         
         if [ -f /etc/default/grub.d/hibernado.cfg ]; then
             log "Removing GRUB hibernation config..."
@@ -382,7 +444,7 @@ EOF
         ;;
         
     *)
-        echo "Usage: $0 {status|prepare|hibernate|suspend-then-hibernate|cleanup}"
+        echo "Usage: $0 {status|prepare|hibernate|suspend-then-hibernate|set-power-button|cleanup}"
         exit 1
         ;;
 esac

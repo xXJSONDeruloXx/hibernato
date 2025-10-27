@@ -3,7 +3,10 @@ import {
   PanelSection,
   PanelSectionRow,
   staticClasses,
-  Field
+  Field,
+  ToggleField,
+  Dropdown,
+  SingleDropdownOption
 } from "@decky/ui";
 import {
   callable,
@@ -18,10 +21,13 @@ const prepareHibernate = callable<[], any>("prepare_hibernate");
 const hibernateNow = callable<[], any>("hibernate_now");
 const suspendThenHibernate = callable<[], any>("suspend_then_hibernate");
 const cleanupHibernate = callable<[], any>("cleanup_hibernate");
+const setPowerButtonOverride = callable<[boolean, string], any>("set_power_button_override");
 
 function Content() {
   const [status, setStatus] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [powerButtonOverride, setPowerButtonOverrideState] = useState(false);
+  const [overrideMode, setOverrideMode] = useState<"hibernate" | "suspend-then-hibernate">("hibernate");
 
   useEffect(() => {
     loadStatus();
@@ -42,6 +48,14 @@ function Content() {
     try {
       const result = await checkHibernateStatus();
       setStatus(result);
+      
+      // Update power button override state from status
+      if (result.power_button_override !== undefined) {
+        setPowerButtonOverrideState(result.power_button_override);
+      }
+      if (result.override_mode) {
+        setOverrideMode(result.override_mode);
+      }
     } catch (error) {
       console.error("Failed to check hibernate status:", error);
       toaster.toast({
@@ -171,6 +185,72 @@ function Content() {
     }
   };
 
+  const handlePowerButtonOverrideToggle = async (enabled: boolean) => {
+    setIsLoading(true);
+    
+    try {
+      const result = await setPowerButtonOverride(enabled, overrideMode);
+      
+      if (result.success) {
+        setPowerButtonOverrideState(enabled);
+        toaster.toast({
+          title: enabled ? "Power Button Override Enabled" : "Power Button Override Disabled",
+          body: enabled 
+            ? `Power button will now trigger ${overrideMode === "hibernate" ? "immediate hibernation" : "suspend-then-hibernate"}`
+            : "Power button restored to normal sleep behavior"
+        });
+        await loadStatus();
+      } else {
+        toaster.toast({
+          title: "Override Failed",
+          body: result.error || "Unknown error occurred"
+        });
+      }
+    } catch (error) {
+      console.error("Power button override failed:", error);
+      toaster.toast({
+        title: "Override Error",
+        body: String(error)
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOverrideModeChange = async (mode: "hibernate" | "suspend-then-hibernate") => {
+    setOverrideMode(mode);
+    
+    // If override is currently enabled, apply the new mode
+    if (powerButtonOverride) {
+      setIsLoading(true);
+      
+      try {
+        const result = await setPowerButtonOverride(true, mode);
+        
+        if (result.success) {
+          toaster.toast({
+            title: "Override Mode Updated",
+            body: `Power button will now trigger ${mode === "hibernate" ? "immediate hibernation" : "suspend-then-hibernate"}`
+          });
+          await loadStatus();
+        } else {
+          toaster.toast({
+            title: "Mode Change Failed",
+            body: result.error || "Unknown error occurred"
+          });
+        }
+      } catch (error) {
+        console.error("Mode change failed:", error);
+        toaster.toast({
+          title: "Mode Change Error",
+          body: String(error)
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
   const getStatusColor = () => {
     if (!status) return "#888";
     if (status.ready) return "#4CAF50";
@@ -220,8 +300,43 @@ function Content() {
       {status?.ready && (
         <>
           <PanelSectionRow>
+            <ToggleField
+              label="Override Power Button"
+              description={powerButtonOverride 
+                ? `Power button will ${overrideMode === "hibernate" ? "hibernate immediately" : "suspend then hibernate"}`
+                : "Power button works normally (suspend only)"
+              }
+              checked={powerButtonOverride}
+              onChange={handlePowerButtonOverrideToggle}
+              disabled={isLoading}
+            />
+          </PanelSectionRow>
+
+          {powerButtonOverride && (
+            <PanelSectionRow>
+              <Field label="Power Button Behavior">
+                <Dropdown
+                  rgOptions={[
+                    {
+                      data: "hibernate" as const,
+                      label: "Hibernate Now"
+                    },
+                    {
+                      data: "suspend-then-hibernate" as const,
+                      label: "Suspend → Hibernate (60min)"
+                    }
+                  ]}
+                  selectedOption={overrideMode}
+                  onChange={(option: SingleDropdownOption) => handleOverrideModeChange(option.data as "hibernate" | "suspend-then-hibernate")}
+                  disabled={isLoading}
+                />
+              </Field>
+            </PanelSectionRow>
+          )}
+          
+          <PanelSectionRow>
             <div style={{ fontSize: "0.85em", color: "#aaa", marginBottom: "8px" }}>
-              <strong>Note:</strong> Power button works normally. Use these buttons for hibernation.
+              <strong>Manual Controls:</strong> Use these buttons for immediate hibernation.
             </div>
           </PanelSectionRow>
           

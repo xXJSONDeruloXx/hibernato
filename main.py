@@ -144,11 +144,31 @@ class Plugin:
                     "success": False,
                     "error": stderr,
                     "ready": False,
-                    "status_code": "ERROR"
+                    "status_code": "ERROR",
+                    "power_button_override": False,
+                    "override_mode": "hibernate"
                 }
             
             status = stdout.strip()
             decky.logger.info(f"Hibernate status: {status}")
+            
+            # Check power button override status
+            power_button_override = False
+            override_mode = "hibernate"
+            
+            try:
+                # Check if the symlink exists
+                symlink_path = "/etc/systemd/system/systemd-suspend.service"
+                if os.path.islink(symlink_path):
+                    target = os.readlink(symlink_path)
+                    if "suspend-then-hibernate" in target:
+                        power_button_override = True
+                        override_mode = "suspend-then-hibernate"
+                    elif "hibernate" in target:
+                        power_button_override = True
+                        override_mode = "hibernate"
+            except Exception as e:
+                decky.logger.warning(f"Could not check power button override status: {e}")
             
             status_map = {
                 "READY": {
@@ -161,7 +181,9 @@ class Plugin:
                     "sleep_conf": True,
                     "ready": True,
                     "status_code": "READY",
-                    "message": "Hibernation fully configured and ready"
+                    "message": "Hibernation fully configured and ready",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "SWAPFILE_MISSING": {
                     "success": True,
@@ -170,7 +192,9 @@ class Plugin:
                     "resume_configured": False,
                     "ready": False,
                     "status_code": "SWAPFILE_MISSING",
-                    "message": "Swapfile not found - setup required"
+                    "message": "Swapfile not found - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "SWAPFILE_TOO_SMALL": {
                     "success": True,
@@ -179,7 +203,9 @@ class Plugin:
                     "resume_configured": False,
                     "ready": False,
                     "status_code": "SWAPFILE_TOO_SMALL",
-                    "message": "Swapfile too small (need 16GB+) - setup required"
+                    "message": "Swapfile too small (need 16GB+) - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "SWAP_INACTIVE": {
                     "success": True,
@@ -188,7 +214,9 @@ class Plugin:
                     "resume_configured": False,
                     "ready": False,
                     "status_code": "SWAP_INACTIVE",
-                    "message": "Swapfile exists but not activated - setup required"
+                    "message": "Swapfile exists but not activated - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "RESUME_NOT_CONFIGURED": {
                     "success": True,
@@ -197,7 +225,9 @@ class Plugin:
                     "resume_configured": False,
                     "ready": False,
                     "status_code": "RESUME_NOT_CONFIGURED",
-                    "message": "Resume parameters not configured - setup required"
+                    "message": "Resume parameters not configured - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "SYSTEMD_NOT_CONFIGURED": {
                     "success": True,
@@ -207,7 +237,9 @@ class Plugin:
                     "systemd_configured": False,
                     "ready": False,
                     "status_code": "SYSTEMD_NOT_CONFIGURED",
-                    "message": "Systemd bypass not configured - setup required"
+                    "message": "Systemd bypass not configured - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "BLUETOOTH_FIX_MISSING": {
                     "success": True,
@@ -218,7 +250,9 @@ class Plugin:
                     "bluetooth_fix": False,
                     "ready": False,
                     "status_code": "BLUETOOTH_FIX_MISSING",
-                    "message": "Bluetooth fix service missing - setup required"
+                    "message": "Bluetooth fix service missing - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 },
                 "SLEEP_CONF_NOT_CONFIGURED": {
                     "success": True,
@@ -230,7 +264,9 @@ class Plugin:
                     "sleep_conf": False,
                     "ready": False,
                     "status_code": "SLEEP_CONF_NOT_CONFIGURED",
-                    "message": "Sleep configuration missing - setup required"
+                    "message": "Sleep configuration missing - setup required",
+                    "power_button_override": power_button_override,
+                    "override_mode": override_mode
                 }
             }
             
@@ -238,7 +274,9 @@ class Plugin:
                 "success": True,
                 "ready": False,
                 "status_code": "UNKNOWN",
-                "message": f"Unknown status: {status}"
+                "message": f"Unknown status: {status}",
+                "power_button_override": power_button_override,
+                "override_mode": override_mode
             })
                 
         except Exception as e:
@@ -247,7 +285,9 @@ class Plugin:
                 "success": False,
                 "error": str(e),
                 "ready": False,
-                "status_code": "ERROR"
+                "status_code": "ERROR",
+                "power_button_override": False,
+                "override_mode": "hibernate"
             }
 
     async def prepare_hibernate(self) -> dict:
@@ -491,6 +531,51 @@ class Plugin:
             
             error_msg = str(e)
             decky.logger.error(f"Error in suspend_then_hibernate: {error_msg}")
+            return {
+                "success": False,
+                "error": error_msg
+            }
+
+    async def set_power_button_override(self, enabled: bool, mode: str) -> dict:
+        """Enable or disable power button override for hibernation
+        
+        Args:
+            enabled: True to enable override, False to disable
+            mode: "hibernate" or "suspend-then-hibernate"
+        """
+        try:
+            decky.logger.info(f"Setting power button override: enabled={enabled}, mode={mode}")
+            
+            # Check if hibernation is ready
+            status = await self.check_hibernate_status()
+            if not status.get("ready", False):
+                return {
+                    "success": False,
+                    "error": "Hibernation must be set up before enabling power button override"
+                }
+            
+            returncode, stdout, stderr = self._run_helper(
+                f"set-power-button {'enable' if enabled else 'disable'} {mode if enabled else ''}".strip(),
+                timeout=10
+            )
+            
+            if returncode != 0:
+                error_msg = stderr or "Unknown error setting power button override"
+                decky.logger.error(f"Power button override failed: {error_msg}")
+                return {
+                    "success": False,
+                    "error": error_msg
+                }
+            
+            decky.logger.info(f"Power button override {'enabled' if enabled else 'disabled'} successfully")
+            return {
+                "success": True,
+                "message": f"Power button override {'enabled' if enabled else 'disabled'}"
+            }
+            
+        except Exception as e:
+            error_msg = str(e)
+            decky.logger.error(f"Error in set_power_button_override: {error_msg}")
             return {
                 "success": False,
                 "error": error_msg

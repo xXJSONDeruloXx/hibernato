@@ -2,7 +2,7 @@
 
 A Decky Loader plugin that enables hibernation on Steam Deck. 
 
-![plugin ui](image.png)
+![plugin ui](assets/image.png)
 
 ###  Options
 - Direct hibernation - system saves state to disk and powers off completely
