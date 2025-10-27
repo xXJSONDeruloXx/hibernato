@@ -269,7 +269,7 @@ function Content() {
     if (!status || !status.success) return null;
     
     const checks = [
-      { label: "Swapfile (20GB)", ok: status.swapfile_exists },
+      { label: "Swapfile", ok: status.swapfile_exists },
       { label: "Swap active", ok: status.swap_active },
       { label: "Resume configured", ok: status.resume_configured },
       { label: "Systemd bypass", ok: status.systemd_configured },
