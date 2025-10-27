@@ -8,6 +8,9 @@ A Decky Loader plugin that enables hibernation on Steam Deck.
 - Direct hibernation - system saves state to disk and powers off completely
 - Suspend then Hibernate - Suspend to RAM first, then automatically hibernate after 60 minutes (quick resume if within delay, zero battery drain after)
 
+- Power button override - optionally make the hardware power button trigger immediate hibernate or suspend-then-hibernate
+- Adjustable suspend→hibernate delay - change the delay (default 60 minutes) from the plugin UI
+
 
 - Works entirely within the `/home` partition
 - All changes are isolated and easily reversible
@@ -20,6 +23,8 @@ A Decky Loader plugin that enables hibernation on Steam Deck.
 3. Choose your power option:
    - **Hibernate Now**: Immediate hibernation (best for long-term storage)
    - **Suspend then Hibernate**: Quick suspend with automatic hibernation after delay (best for flexibility)
+   - **Power Button Override**: Toggle "Override Power Button" to make the hardware power button trigger your chosen hibernation behavior (Hibernate Now or Suspend→Hibernate)
+   - **Delay Setting**: When using Suspend→Hibernate you can change the delay (minutes/hours) from the plugin UI under "Suspend-Then-Hibernate Settings"
 4. Resume by pressing the power button
 
 ## How It Works
