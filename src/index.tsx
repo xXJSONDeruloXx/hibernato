@@ -281,7 +281,7 @@ function Content() {
   };
 
   return (
-    <PanelSection title="Hibernation Control">
+    <PanelSection>
       <PanelSectionRow>
         <Field
           label="Status"
@@ -299,6 +299,22 @@ function Content() {
 
       {status?.ready && (
         <>
+          <PanelSectionRow>
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: "bold",
+                marginTop: "8px",
+                marginBottom: "6px",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
+                paddingBottom: "3px",
+                color: "white"
+              }}
+            >
+              Power Button
+            </div>
+          </PanelSectionRow>
+
           <PanelSectionRow>
             <ToggleField
               label="Override Power Button"
@@ -339,8 +355,18 @@ function Content() {
           )}
           
           <PanelSectionRow>
-            <div style={{ fontSize: "0.85em", color: "#aaa", marginBottom: "8px" }}>
-              <strong>Manual Controls:</strong> Use these buttons for immediate hibernation.
+            <div
+              style={{
+                fontSize: "14px",
+                fontWeight: "bold",
+                marginTop: "8px",
+                marginBottom: "6px",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
+                paddingBottom: "3px",
+                color: "white"
+              }}
+            >
+              Manual Buttons
             </div>
           </PanelSectionRow>
           
