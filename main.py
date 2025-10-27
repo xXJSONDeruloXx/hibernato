@@ -63,11 +63,12 @@ class Plugin:
         else:
             decky.logger.error(f"Helper script not found at {self.helper_script}")
         
-    def _run_helper(self, action: str, timeout: int = 60) -> tuple[int, str, str]:
-        """Run the helper script with the given action"""
+    def _run_helper(self, action: str, *args, timeout: int = 60) -> tuple[int, str, str]:
+        """Run the helper script with the given action and optional arguments"""
         try:
+            cmd = [str(self.helper_script), action] + list(args)
             result = subprocess.run(
-                [str(self.helper_script), action],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -554,10 +555,17 @@ class Plugin:
                     "error": "Hibernation must be set up before enabling power button override"
                 }
             
-            returncode, stdout, stderr = self._run_helper(
-                f"set-power-button {'enable' if enabled else 'disable'} {mode if enabled else ''}".strip(),
-                timeout=10
-            )
+            # Build arguments for helper script
+            if enabled:
+                returncode, stdout, stderr = self._run_helper(
+                    "set-power-button", "enable", mode,
+                    timeout=10
+                )
+            else:
+                returncode, stdout, stderr = self._run_helper(
+                    "set-power-button", "disable",
+                    timeout=10
+                )
             
             if returncode != 0:
                 error_msg = stderr or "Unknown error setting power button override"

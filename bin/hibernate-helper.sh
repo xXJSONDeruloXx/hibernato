@@ -252,6 +252,73 @@ HibernateDelaySec=60min
 EOF
         systemctl daemon-reload
         
+        log "Creating hibernate resume setup script in /home..."
+        mkdir -p /home/deck/.local/libexec
+        cat > /home/deck/.local/libexec/hibernado-set-resume.sh << 'EOF'
+#!/bin/bash
+# hibernado - Set resume parameters before hibernation
+
+SWAP=/home/swapfile
+
+if [ ! -f "$SWAP" ]; then
+    echo "[hibernado] Swapfile not found, skipping resume setup" >&2
+    exit 0
+fi
+
+# Get device information
+DEV_PATH=$(findmnt -no SOURCE -T /home 2>/dev/null)
+if [ -z "$DEV_PATH" ]; then
+    echo "[hibernado] Could not find /home device" >&2
+    exit 1
+fi
+
+# Get major:minor device numbers
+MAJOR=$(stat -c "%t" "$DEV_PATH" 2>/dev/null)
+MINOR=$(stat -c "%T" "$DEV_PATH" 2>/dev/null)
+
+if [ -z "$MAJOR" ] || [ -z "$MINOR" ]; then
+    echo "[hibernado] Could not get device numbers" >&2
+    exit 1
+fi
+
+# Convert hex to decimal
+MAJOR_DEC=$((16#$MAJOR))
+MINOR_DEC=$((16#$MINOR))
+RESUME_DEV="$MAJOR_DEC:$MINOR_DEC"
+
+# Get swapfile offset
+OFF=$(filefrag -v "$SWAP" 2>/dev/null | awk '$1=="0:" {print substr($4, 1, length($4)-2)}')
+
+if [ -z "$OFF" ]; then
+    echo "[hibernado] Could not get swapfile offset" >&2
+    exit 1
+fi
+
+# Set resume parameters
+echo "[hibernado] Setting resume device: $RESUME_DEV, offset: $OFF" >&2
+echo "$RESUME_DEV" > /sys/power/resume 2>/dev/null || echo "[hibernado] WARNING: Could not set resume device" >&2
+echo "$OFF" > /sys/power/resume_offset 2>/dev/null || echo "[hibernado] WARNING: Could not set resume offset" >&2
+
+# Set hibernation mode
+echo "platform" > /sys/power/disk 2>/dev/null || echo "[hibernado] WARNING: Could not set hibernation mode" >&2
+EOF
+        chmod +x /home/deck/.local/libexec/hibernado-set-resume.sh
+        chown deck:deck /home/deck/.local/libexec/hibernado-set-resume.sh
+        
+        log "Creating systemd service to set resume parameters before hibernation..."
+        mkdir -p /etc/systemd/system/systemd-hibernate.service.d
+        cat > /etc/systemd/system/systemd-hibernate.service.d/hibernado-resume.conf << EOF
+[Service]
+ExecStartPre=/home/deck/.local/libexec/hibernado-set-resume.sh
+EOF
+        
+        mkdir -p /etc/systemd/system/systemd-suspend-then-hibernate.service.d
+        cat > /etc/systemd/system/systemd-suspend-then-hibernate.service.d/hibernado-resume.conf << EOF
+[Service]
+ExecStartPre=/home/deck/.local/libexec/hibernado-set-resume.sh
+EOF
+        systemctl daemon-reload
+        
         log "Setting up SteamOS boot counter fix..."
         cat > /etc/systemd/system/steamos-hibernate-success.service << 'EOF'
 [Unit]
@@ -417,6 +484,24 @@ EOF
         if [ -f /etc/systemd/sleep.conf ]; then
             log "Removing sleep configuration..."
             rm -f /etc/systemd/sleep.conf
+        fi
+        
+        if [ -d /etc/systemd/system/systemd-hibernate.service.d ]; then
+            log "Removing hibernate service drop-in..."
+            rm -f /etc/systemd/system/systemd-hibernate.service.d/hibernado-resume.conf
+            rmdir /etc/systemd/system/systemd-hibernate.service.d 2>/dev/null || true
+        fi
+        
+        if [ -d /etc/systemd/system/systemd-suspend-then-hibernate.service.d ]; then
+            log "Removing suspend-then-hibernate service drop-in..."
+            rm -f /etc/systemd/system/systemd-suspend-then-hibernate.service.d/hibernado-resume.conf
+            rmdir /etc/systemd/system/systemd-suspend-then-hibernate.service.d 2>/dev/null || true
+        fi
+        
+        if [ -f /home/deck/.local/libexec/hibernado-set-resume.sh ]; then
+            log "Removing resume setup script..."
+            rm -f /home/deck/.local/libexec/hibernado-set-resume.sh
+            rmdir /home/deck/.local/libexec 2>/dev/null || true
         fi
         
         log "Reloading systemd configuration..."
